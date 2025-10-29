@@ -1,0 +1,177 @@
+# Breadcrumbs
+
+> A blog of collected crumbs that reads like one long rant
+
+## Purpose
+
+Breadcrumbs is a web application for capturing and organizing stream-of-consciousness thoughts, inspired by a public Google Doc maintained by a Google PM. Unlike traditional blog platforms that emphasize discrete articles, Breadcrumbs presents content as a continuous flow of timestamped, tagged crumbs in markdown format.
+
+**Inspiration:** https://docs.google.com/document/d/1GrEFrdF_IzRVXbGH1lG0aQMlvsB71XihPPqQN-ONTuo/edit?tab=t.0
+
+**Core Philosophy:**
+- Easy to add new thoughts quickly
+- Easy to read as a continuous narrative
+- Easy to search and filter by tags
+- Maintains chronological flow while allowing unit-based organization
+
+## Architecture
+
+### Tech Stack
+
+**Backend:**
+- Python 3.11+
+- FastAPI - Modern async web framework
+- PostgreSQL - Database with full-text search
+- SQLModel - Type-safe ORM combining SQLAlchemy + Pydantic
+- Alembic - Database migrations
+
+**Frontend:**
+- TypeScript
+- React 18+
+- TanStack Router - Type-safe file-based routing
+- TanStack Query - Server state management
+- Tailwind CSS - Utility-first styling
+- Shadcn UI - Customizable component primitives
+- Vite - Build tool and dev server
+
+**Deployment:**
+- Docker for containerization
+- PostgreSQL database
+
+### Key Components
+
+**Backend API:**
+- `/api/crumbs` - CRUD operations for crumbs
+- `/api/tags` - Tag management and search
+- Full-text search endpoint for filtering crumbs
+- Markdown content validation and sanitization
+
+**Frontend Views:**
+- **Stream View:** Continuous scrolling display of all crumbs
+- **Tag Filter:** Filter crumbs by one or more tags
+- **Add Crumb:** Quick input form with markdown preview
+- **Search:** Full-text search across all crumb content
+
+**Data Models:**
+- **Crumb:** Timestamped markdown content with tags and optional unit grouping
+- **Tag:** Categorization labels with many-to-many relationship to crumbs
+- **CrumbTag:** Join table for many-to-many relationship
+
+## Getting Started
+
+### Prerequisites
+- Python 3.11+
+- Node.js 18+
+- PostgreSQL 15+
+- Docker (optional, for containerized development)
+
+### Installation
+
+**Backend setup:**
+```bash
+cd backend
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+**Frontend setup:**
+```bash
+cd frontend
+npm install
+```
+
+**Database setup:**
+```bash
+# Create PostgreSQL database
+createdb breadcrumbs
+
+# Run migrations
+cd backend
+alembic upgrade head
+```
+
+### Development
+
+**Start backend server:**
+```bash
+cd backend
+uvicorn app.main:app --reload
+# API available at http://localhost:8000
+# Docs at http://localhost:8000/docs
+```
+
+**Start frontend dev server:**
+```bash
+cd frontend
+npm run dev
+# App available at http://localhost:5173
+```
+
+**Database migrations:**
+```bash
+# Create new migration
+alembic revision --autogenerate -m "description"
+
+# Apply migrations
+alembic upgrade head
+```
+
+## Key Concepts
+
+**Crumbs:**
+The core content unit - a timestamped thought or observation written in markdown. Unlike traditional blog posts, crumbs are designed to flow together as a continuous stream.
+
+**Tags:**
+Categorical labels applied to crumbs for filtering and discovery. A crumb can have multiple tags.
+
+**Units:**
+Optional grouping mechanism to break up the continuous stream by theme or time period while maintaining reading flow.
+
+**Stream View:**
+The primary interface showing all crumbs in chronological order, designed to be read as one continuous narrative rather than discrete articles.
+
+## Project Structure
+
+```
+/breadcrumbs
+  /backend/
+    /app/
+      /api/          # FastAPI route handlers (crumbs, tags)
+      /models/       # SQLModel database models (Crumb, Tag, CrumbTag)
+      /schemas/      # Pydantic validation schemas
+      /core/         # Config, database connection, dependencies
+      /services/     # Business logic layer
+    /alembic/        # Database migrations
+    /tests/          # Backend tests
+    requirements.txt
+
+  /frontend/
+    /src/
+      /routes/       # TanStack Router pages
+      /components/   # React components
+      /lib/          # Utilities and helpers
+      /hooks/        # Custom React hooks
+    package.json
+
+  /.llm/             # Private AI workspace (gitignored)
+  /CLAUDE.md         # Development conventions
+  /llms.txt          # This file - public LLM documentation
+  /.gitignore
+```
+
+## Contributing
+
+This project uses AI-assisted development. See CLAUDE.md for conventions and workflow.
+
+### Development Workflow
+- Work tracked in `.llm/active-plan.md` (private workspace)
+- Conventions documented in `CLAUDE.md`
+- Public docs maintained in this file (`llms.txt`)
+
+## Additional Resources
+
+[To be added as project grows]
+- Documentation
+- API reference
+- Related projects
