@@ -16,33 +16,79 @@ class CrumbTag(SQLModel, table=True):
     crumb_id: int = Field(
         foreign_key="crumb.id",
         primary_key=True,
-        sa_column_kwargs={"ondelete": "CASCADE"},
     )
     tag_id: int = Field(
         foreign_key="tag.id",
         primary_key=True,
-        sa_column_kwargs={"ondelete": "CASCADE"},
     )
+
+
+# ---------- units ----------
+class UnitBase(SQLModel, table=False):
+    name: str = Field(
+        max_length=100,
+        description="Display name for this writing session"
+    )
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        description="When this session was started"
+    )
+
+
+class Unit(UnitBase, table=True):
+    __tablename__ = "unit"
+    __table_args__ = (Index("idx_unit_name", "name"),)
+    id: int | None = Field(default=None, primary_key=True)
+    crumbs: list["Crumb"] = Relationship(
+        back_populates="unit",
+        sa_relationship_kwargs={
+            "lazy": "selectin",
+        },
+    )
+
+    def __str__(self) -> str:
+        return f"Unit(id={self.id}, name={self.name}, created_at={self.created_at})"
+
+
+class UnitCreate(UnitBase, table=False):
+    pass
+
+
+class UnitPublic(UnitBase, table=False):
+    id: int
 
 
 # ---------- crumbs ----------
 class CrumbBase(SQLModel, table=False):
-    body: str = Field(description="The content of the crumb")
+    body_md: str = Field(description="Markdown content of the crumb")
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime | None = Field(default=None)
+    updated_at: datetime | None = Field(
+        default=None,
+        sa_column_kwargs={"onupdate": lambda: datetime.now(timezone.utc)}
+    )
     visibility: Visibility = Field(
-        description="The crumb's status (draft or published etc.)"
+        default=Visibility.draft,
+        description="The crumb's status (draft or published)"
     )
 
 
 # The model for the persisted entity
 class Crumb(CrumbBase, table=True):
     __tablename__ = "crumb"  # type: ignore
+    __table_args__ = (Index("idx_crumb_created_at", "created_at"),)
     id: int | None = Field(default=None, primary_key=True)
+
+    # Foreign key to unit (optional)
+    unit_id: int | None = Field(default=None, foreign_key="unit.id")
+    unit: Unit | None = Relationship(
+        back_populates="crumbs",
+        sa_relationship_kwargs={"lazy": "selectin"}
+    )
+
+    # Many-to-many relationship with tags
     tags: list["Tag"] = Relationship(
         back_populates="crumbs",
         link_model=CrumbTag,
-        repr=False,
         sa_relationship_kwargs={
             "lazy": "selectin",  # fetch related rows in a separate but efficient query using IN
             "passive_deletes": True,  # Defer delete handling to DB (requires ON DELETE CASCADE on the foreign key)
@@ -51,16 +97,18 @@ class Crumb(CrumbBase, table=True):
 
     def __str__(self) -> str:
         return (
-            f"Crumb of id:{self.id}: {self.body[:10]}... created at: {self.created_at}"
+            f"Crumb of id:{self.id}: {self.body_md[:10]}... created at: {self.created_at}"
         )
 
 
 class CrumbCreate(CrumbBase, table=False):
+    unit_name: str | None = Field(default=None, description="Optional unit name for grouping")
     tags: list["TagCreate"] = Field(default=[])
 
 
 class CrumbPublic(CrumbBase, table=False):
     id: int
+    unit: UnitPublic | None = None
     tags: list["TagPublic"] = Field(default=[])
 
 
@@ -88,7 +136,6 @@ class Tag(TagBase, table=True):
     crumbs: list["Crumb"] = Relationship(
         back_populates="tags",
         link_model=CrumbTag,
-        repr=False,
         sa_relationship_kwargs={
             "lazy": "selectin",  # fetch related rows in a separate but efficient query using IN
             "passive_deletes": True,  # Defer delete handling to DB (requires ON DELETE CASCADE on the foreign key)
