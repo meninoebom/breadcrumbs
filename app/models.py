@@ -1,13 +1,10 @@
 from datetime import datetime, timezone
 from enum import Enum
 import re
-from typing import TYPE_CHECKING, List, Optional
+from typing import List, Optional
 
 from pydantic import field_validator
 from sqlmodel import Field, Index, Relationship, SQLModel, text
-
-if TYPE_CHECKING:
-    from typing import Any  # For type checkers only
 
 
 class Visibility(str, Enum):
@@ -19,10 +16,12 @@ class CrumbTag(SQLModel, table=True):
     crumb_id: int = Field(
         foreign_key="crumb.id",
         primary_key=True,
+        sa_column_kwargs={"ondelete": "CASCADE"},
     )
     tag_id: int = Field(
         foreign_key="tag.id",
         primary_key=True,
+        sa_column_kwargs={"ondelete": "CASCADE"},
     )
 
 
@@ -117,7 +116,7 @@ class TagBase(SQLModel, table=False):
         index=True, min_length=1, max_length=50, description="Name of the tag"
     )
 
-    @field_validator("name", mode='before')
+    @field_validator("name", mode="before")
     @classmethod
     def normalize_name(cls, v: str) -> str:
         if not v or not v.strip():

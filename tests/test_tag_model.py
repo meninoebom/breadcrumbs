@@ -1,7 +1,7 @@
 """Tests for the Tag model."""
+
 import pytest
 from sqlmodel import Session, select
-from pydantic import ValidationError
 
 from app.models import Tag, Crumb
 
@@ -18,14 +18,15 @@ def test_tag_create_minimal(session: Session):
 
 
 def test_tag_create_with_different_case(session: Session):
-    """Test creating tags with different cases."""
-    tag = Tag(name="Python")
+    """Test creating tags with different cases - should be normalized to lowercase."""
+    # Use model_validate to trigger Pydantic validation and normalization
+    tag = Tag.model_validate({"name": "Python"})
     session.add(tag)
     session.commit()
     session.refresh(tag)
 
     assert tag.id is not None
-    assert tag.name == "Python"  # Case preserved as-is
+    assert tag.name == "python"  # Case normalized to lowercase by validator
 
 
 # Note: Tag name normalization (spaces, dashes, case) is defined in the model

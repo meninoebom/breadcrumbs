@@ -1,4 +1,5 @@
 """Pytest configuration and fixtures for breadcrumbs tests."""
+
 import os
 import pytest
 from sqlmodel import Session, SQLModel, create_engine
@@ -27,5 +28,7 @@ def session_fixture():
         # Rollback any uncommitted changes
         session.rollback()
 
-    # Clean up
+    # In memory SQLite DBs are destroyed after the last connection
+    # closed or at least at the fixture end when the engine is
+    # garbage collected
     SQLModel.metadata.drop_all(engine)
