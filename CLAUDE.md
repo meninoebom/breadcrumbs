@@ -109,17 +109,31 @@ Useful slash commands for this project:
 - `body_md` - Markdown text
 - `created_at` - Created datetime
 - `updated_at` - Last modified datetime
+- `visibility` - Enum: draft or published
+- `unit_id` - Foreign key to Unit (optional, one-to-many)
 - `tags` - Relation to tags (many-to-many via CrumbTag)
-- `unit` - Optional grouping identifier
+
+**Unit:**
+- `id` - Primary key
+- `name` - Display name for the writing session (e.g., "react-hooks", "morning-thoughts")
+- `created_at` - When this session was started
+- `crumbs` - Relationship to crumbs (one-to-many)
+- **Purpose:** Groups related crumbs from a single writing session. Same display name can be reused across different sessions (different created_at timestamps create distinct units). This provides visual grouping in the chronological stream while maintaining continuous flow.
 
 **Tag:**
 - `id` - Primary key
-- `name` - Tag name
+- `name` - Tag name (normalized: lowercase, dashes, unique)
 - Relationship to crumbs (many-to-many via CrumbTag)
 
 **CrumbTag (join table):**
 - `crumb_id` - Foreign key to Crumb
 - `tag_id` - Foreign key to Tag
+
+**Relationship Design:**
+- **Units = Temporal grouping** (when): Writing sessions, visually separated in stream
+- **Tags = Topical grouping** (what): Topic relationships across all sessions
+- Crumbs can have zero or one Unit (optional session grouping)
+- Crumbs can have multiple Tags (flexible categorization)
 
 ### Common Patterns
 [To be documented as patterns emerge during development]
