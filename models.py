@@ -60,6 +60,7 @@ class CrumbCreate(CrumbBase, table=False):
 
 
 class CrumbPublic(CrumbBase, table=False):
+    id: int
     tags: list["TagPublic"] = Field(default=[])
 
 
@@ -104,4 +105,4 @@ class TagCreate(TagBase):
 
 
 class TagPublic(TagBase):
-    pass
+    id: int
