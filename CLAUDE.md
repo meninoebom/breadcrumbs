@@ -139,4 +139,19 @@ Useful slash commands for this project:
 [To be documented as patterns emerge during development]
 
 ### Gotchas & Known Issues
-[Document any quirks, workarounds, or things to watch out for]
+
+**SQLModel + SQLAlchemy 2.0 Compatibility:**
+- Do NOT use `from __future__ import annotations` - causes relationship resolution errors
+- Use explicit types: `List["Model"]` and `Optional[Type]` instead of `list["Model"]` and `Type | None`
+- Add `# type: ignore` to relationship fields to suppress false type checker warnings
+- Avoid `ondelete` in Field's `sa_column_kwargs` - use relationship-level `passive_deletes=True` instead
+
+**Pydantic Validators in SQLModel:**
+- Field validators in base classes (table=False) don't apply to table models (table=True)
+- Use `mode='before'` in `@field_validator` for pre-coercion validation
+- Known limitation: Name normalization validators won't run on table models - needs custom save logic
+
+**Testing with SQLite:**
+- SQLite doesn't preserve timezone info on datetime fields
+- Use in-memory database (`:memory:`) for fast, isolated tests
+- StaticPool required for in-memory SQLite with SQLModel

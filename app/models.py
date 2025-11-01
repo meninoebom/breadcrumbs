@@ -16,12 +16,10 @@ class CrumbTag(SQLModel, table=True):
     crumb_id: int = Field(
         foreign_key="crumb.id",
         primary_key=True,
-        sa_column_kwargs={"ondelete": "CASCADE"},
     )
     tag_id: int = Field(
         foreign_key="tag.id",
         primary_key=True,
-        sa_column_kwargs={"ondelete": "CASCADE"},
     )
 
 
