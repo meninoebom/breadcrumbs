@@ -1,5 +1,6 @@
+"""Database configuration and session management."""
+
 import os
-from contextlib import contextmanager
 from typing import Generator
 
 from dotenv import load_dotenv
@@ -7,45 +8,31 @@ from sqlmodel import Session, create_engine
 
 load_dotenv()
 
-db_url = os.getenv("DATABASE_URL", "sqlite:///breadcrumbs.sqlite")
-engine = create_engine(db_url, echo=False)
+# Database URL from environment
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///breadcrumbs.sqlite")
+
+# Echo SQL in development
+ECHO_SQL = os.getenv("ENVIRONMENT", "development") == "development"
+
+# Create engine with appropriate settings
+engine = create_engine(
+    DATABASE_URL,
+    echo=ECHO_SQL,
+    # Postgres-specific: connection pool settings (ignored by SQLite)
+    pool_pre_ping=True,  # Verify connections before using to avoid errors
+    pool_size=5,  # Number of connections to keep
+    max_overflow=10,  # Extra connections if needed
+)
 
 
-class SessionFactory:
-    def __init__(self, engine):
-        self.engine = engine
-        self._sessions = []  # Track sessions
-
-    def create_session(self) -> Session:
-        """Create a session without context management."""
-        session = Session(self.engine)
-        self._sessions.append(session)
-        return session
-
-    @contextmanager
-    def managed_session(self) -> Generator[Session, None, None]:
-        session = Session(self.engine)
-        self._sessions.append(session)
+def get_session() -> Generator[Session, None, None]:
+    """Database session dependency for FastAPI routes."""
+    with Session(engine) as session:
         try:
             yield session
             session.commit()
         except Exception:
+            # If you don’t roll it back, the session stays in a bad state
+            # and very further query will fail with: `sqlalchemy.exc.PendingRollbackError`
             session.rollback()
             raise
-        finally:
-            session.close()
-            self._sessions.remove(session)
-
-    def close_all_sessions(self):
-        """Explicitly close all tracked sessions"""
-        for session in self._sessions[
-            :
-        ]:  # Copy list to avoid modification during iteration
-            try:
-                session.close()
-            except Exception:
-                print(f"Error closing session: {session}")
-        self._sessions.clear()
-
-
-default_session_factory = SessionFactory(engine)
