@@ -8,7 +8,9 @@ dependencies = [
     "alembic>=1.17.0",
     "dotenv>=0.9.9",
     "fastapi>=0.120.1",
+    "psycopg[binary]>=3.2.12",
     "pydantic>=2.12.3",
+    "sqlalchemy>=2.0.44",
     "sqlmodel>=0.0.27",
     "uvicorn[standard]>=0.38.0",
 ]

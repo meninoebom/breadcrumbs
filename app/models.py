@@ -20,6 +20,7 @@ class CrumbTag(SQLModel, table=True):
     tag_id: int = Field(
         foreign_key="tag.id",
         primary_key=True,
+        index=True,
     )
 
 
@@ -111,7 +112,7 @@ class CrumbPublic(CrumbBase, table=False):
 # ---------- tags ----------
 class TagBase(SQLModel, table=False):
     name: str = Field(
-        index=True, min_length=1, max_length=50, description="Name of the tag"
+        min_length=1, max_length=50, description="Name of the tag"
     )
 
     @field_validator("name", mode="before")
