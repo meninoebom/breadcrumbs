@@ -2,7 +2,7 @@
 
 ## Project Overview
 **Name:** Breadcrumbs
-**Description:** A blog of collected crumbs that reads like one long rant. Based on a public Google doc maintained by a Google PM, this app makes it easy to timestamp, tag, search, and read through stream-of-consciousness thoughts in markdown format.
+**Description:** A blog of collected breadcrumbs organized into themes. Based on a public Google doc maintained by a Google PM, this app makes it easy to create themes, add small thought atoms (breadcrumbs) to them, tag themes, and read through published content in a continuous stream format.
 **Inspiration:** https://docs.google.com/document/d/1GrEFrdF_IzRVXbGH1lG0aQMlvsB71XihPPqQN-ONTuo/edit?tab=t.0
 
 **Tech Stack:**
@@ -61,9 +61,10 @@ This project uses AI-assisted development with the following structure:
 ### Architecture Patterns
 - **Full-stack separation:** Backend and frontend in separate directories
 - **API-first design:** Backend exposes RESTful JSON API
-- **Tag-based organization:** Crumbs are tagged and searchable
-- **Chronological display:** Crumbs presented as continuous stream with timestamps
+- **Theme-based organization:** Breadcrumbs grouped by theme, themes are tagged and searchable
+- **Chronological display:** Themes and their breadcrumbs presented as continuous stream with clear theme boundaries
 - **Markdown support:** All content rendered as markdown
+- **Draft/publish workflow:** Themes can be drafted and published; readers only see published themes
 
 ### Testing Strategy
 - **Backend:** pytest for unit and integration tests
@@ -88,12 +89,16 @@ Useful slash commands for this project:
 ## Project-Specific Notes
 
 ### Core Features
-- **Tag-based search:** Filter crumbs by tags
-- **Easy to add:** Quick input for new crumbs with markdown support
-- **Easy to read:** Continuous stream presentation (not traditional blog articles)
-- **Timestamps:** Every crumb has a timestamp
+- **Theme creation:** Writers create themes as containers for related breadcrumbs
+- **Breadcrumb authoring:** Add small individual thought atoms (breadcrumbs) to themes
+- **Tag-based organization:** Tags applied at theme level for filtering and discovery
+- **Draft/publish workflow:** Writers can draft themes before publishing to readers
+- **Authenticated editing:** Writers login to see unpublished themes and edit existing ones
+- **Easy to read:** Continuous stream presentation with clear theme boundaries (not traditional blog articles)
+- **Tag browsing:** Readers browse tags alphabetically and filter themes by tag
+- **Search:** Full-text search across theme titles, breadcrumb content, and tags
+- **Timestamps:** Every breadcrumb has a timestamp
 - **Markdown rendering:** Full markdown support for formatting
-- **Unit-based organization:** Crumbs broken up by unit and date while maintaining flow
 
 ### Key Design Decisions
 - **Visual style:** Reads like one long rant/stream-of-consciousness rather than discrete articles
@@ -104,36 +109,42 @@ Useful slash commands for this project:
 - **Shadcn UI:** Copy-paste components for customization instead of npm dependency
 
 ### Data Model
-**Crumb:**
+**Theme:**
 - `id` - Primary key
-- `body_md` - Markdown text
+- `title` - Required display name for the theme (e.g., "React Hooks Deep Dive", "Morning Thoughts on Architecture")
+- `description_md` - Optional markdown intro/context for the theme
+- `visibility` - Enum: draft or published (controls reader visibility)
+- `created_at` - When theme was created
+- `updated_at` - Last modified datetime
+- `breadcrumbs` - Relationship to breadcrumbs (one-to-many)
+- `tags` - Relationship to tags (many-to-many via ThemeTag)
+- **Purpose:** Topical container for related breadcrumbs. Themes are the primary organizational unit, providing clear boundaries in the continuous stream. Tags and visibility are managed at theme level.
+
+**Breadcrumb:**
+- `id` - Primary key
+- `body_md` - Markdown text (the actual thought/content atom)
 - `created_at` - Created datetime
 - `updated_at` - Last modified datetime
-- `visibility` - Enum: draft or published
-- `unit_id` - Foreign key to Unit (optional, one-to-many)
-- `tags` - Relation to tags (many-to-many via CrumbTag)
-
-**Unit:**
-- `id` - Primary key
-- `name` - Display name for the writing session (e.g., "react-hooks", "morning-thoughts")
-- `created_at` - When this session was started
-- `crumbs` - Relationship to crumbs (one-to-many)
-- **Purpose:** Groups related crumbs from a single writing session. Same display name can be reused across different sessions (different created_at timestamps create distinct units). This provides visual grouping in the chronological stream while maintaining continuous flow.
+- `theme_id` - Foreign key to Theme (required, one-to-many)
+- **Purpose:** Small individual thought atoms that belong to a theme. Visibility is inherited from parent theme.
 
 **Tag:**
 - `id` - Primary key
 - `name` - Tag name (normalized: lowercase, dashes, unique)
-- Relationship to crumbs (many-to-many via CrumbTag)
+- `themes` - Relationship to themes (many-to-many via ThemeTag)
 
-**CrumbTag (join table):**
-- `crumb_id` - Foreign key to Crumb
+**ThemeTag (join table):**
+- `theme_id` - Foreign key to Theme
 - `tag_id` - Foreign key to Tag
 
 **Relationship Design:**
-- **Units = Temporal grouping** (when): Writing sessions, visually separated in stream
-- **Tags = Topical grouping** (what): Topic relationships across all sessions
-- Crumbs can have zero or one Unit (optional session grouping)
-- Crumbs can have multiple Tags (flexible categorization)
+- **Themes = Topical grouping**: Container for related breadcrumbs with title, tags, and visibility
+- **Breadcrumbs = Content atoms**: Individual thoughts that belong to exactly one theme
+- **Tags = Discovery mechanism**: Applied to themes for filtering and browsing
+- Themes must have a title and can have 0+ tags
+- Breadcrumbs must belong to exactly one theme
+- Only published themes (and their breadcrumbs) are visible to readers
+- Writers see both draft and published themes when authenticated
 
 ### Common Patterns
 [To be documented as patterns emerge during development]

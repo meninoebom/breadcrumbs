@@ -4,15 +4,17 @@
 
 ## Purpose
 
-Breadcrumbs is a web application for capturing and organizing stream-of-consciousness thoughts, inspired by a public Google Doc maintained by a Google PM. Unlike traditional blog platforms that emphasize discrete articles, Breadcrumbs presents content as a continuous flow of timestamped, tagged crumbs in markdown format.
+Breadcrumbs is a web application for capturing and organizing stream-of-consciousness thoughts into themes, inspired by a public Google Doc maintained by a Google PM. Unlike traditional blog platforms that emphasize discrete articles, Breadcrumbs presents content as a continuous flow where themes contain small thought atoms (breadcrumbs) in markdown format.
 
 **Inspiration:** https://docs.google.com/document/d/1GrEFrdF_IzRVXbGH1lG0aQMlvsB71XihPPqQN-ONTuo/edit?tab=t.0
 
 **Core Philosophy:**
-- Easy to add new thoughts quickly
-- Easy to read as a continuous narrative
-- Easy to search and filter by tags
-- Maintains chronological flow while allowing unit-based organization
+- Writers create themes and add breadcrumbs (small thought atoms) to them
+- Easy to add new breadcrumbs to themes quickly
+- Easy to read as a continuous narrative with clear theme boundaries
+- Easy to search and filter themes by tags
+- Draft/publish workflow for writers; readers only see published themes
+- Maintains chronological flow while providing topical organization via themes
 
 ## Architecture
 
@@ -41,21 +43,24 @@ Breadcrumbs is a web application for capturing and organizing stream-of-consciou
 ### Key Components
 
 **Backend API:**
-- `/api/crumbs` - CRUD operations for crumbs
-- `/api/tags` - Tag management and search
-- Full-text search endpoint for filtering crumbs
-- Markdown content validation and sanitization
+- `/api/themes` - CRUD operations for themes (title, description, tags, visibility)
+- `/api/themes/{id}/breadcrumbs` - CRUD operations for breadcrumbs within a theme
+- `/api/tags` - Tag management and browsing
+- Full-text search endpoint for filtering themes by title, content, or tags
+- Authentication endpoints for writer access
 
 **Frontend Views:**
-- **Stream View:** Continuous scrolling display of all crumbs
-- **Tag Filter:** Filter crumbs by one or more tags
-- **Add Crumb:** Quick input form with markdown preview
-- **Search:** Full-text search across all crumb content
+- **Stream View (Reader):** Continuous scrolling display of all published themes and their breadcrumbs
+- **Theme Editor (Writer):** Create/edit themes, add breadcrumbs, manage tags, publish/draft toggle
+- **Tag Browser:** Browse all tags alphabetically, filter themes by tag
+- **Search:** Full-text search across theme titles, breadcrumb content, and tags
+- **Writer Dashboard:** View all themes (draft + published), edit existing themes
 
 **Data Models:**
-- **Crumb:** Timestamped markdown content with tags and optional unit grouping
-- **Tag:** Categorization labels with many-to-many relationship to crumbs
-- **CrumbTag:** Join table for many-to-many relationship
+- **Theme:** Topical container with title, optional description, visibility (draft/published), and tags
+- **Breadcrumb:** Small thought atom (markdown content) that belongs to exactly one theme
+- **Tag:** Categorization labels with many-to-many relationship to themes
+- **ThemeTag:** Join table for many-to-many relationship between themes and tags
 
 ## Getting Started
 
@@ -119,17 +124,20 @@ alembic upgrade head
 
 ## Key Concepts
 
-**Crumbs:**
-The core content unit - a timestamped thought or observation written in markdown. Unlike traditional blog posts, crumbs are designed to flow together as a continuous stream.
+**Themes:**
+The primary organizational unit - a topical container with a title and optional description. Themes have visibility states (draft/published) and can be tagged. Themes contain one or more breadcrumbs.
+
+**Breadcrumbs:**
+Small individual thought atoms - timestamped markdown content that belongs to a theme. Unlike traditional blog posts, breadcrumbs are designed as small chunks that flow together within their theme container.
 
 **Tags:**
-Categorical labels applied to crumbs for filtering and discovery. A crumb can have multiple tags.
-
-**Units:**
-Optional grouping mechanism to break up the continuous stream by theme or time period while maintaining reading flow.
+Categorical labels applied to themes (not individual breadcrumbs) for filtering and discovery. A theme can have multiple tags.
 
 **Stream View:**
-The primary interface showing all crumbs in chronological order, designed to be read as one continuous narrative rather than discrete articles.
+The primary reader interface showing all published themes and their breadcrumbs in chronological order, with clear visual boundaries between themes. Designed to be read as one continuous narrative rather than discrete articles.
+
+**Writer View:**
+Authenticated interface where writers can see draft and published themes, create new themes, add breadcrumbs to themes, manage tags, and publish/unpublish themes.
 
 ## Project Structure
 
@@ -137,8 +145,8 @@ The primary interface showing all crumbs in chronological order, designed to be 
 /breadcrumbs
   /backend/
     /app/
-      /api/          # FastAPI route handlers (crumbs, tags)
-      /models/       # SQLModel database models (Crumb, Tag, CrumbTag)
+      /api/          # FastAPI route handlers (themes, breadcrumbs, tags)
+      /models/       # SQLModel database models (Theme, Breadcrumb, Tag, ThemeTag)
       /schemas/      # Pydantic validation schemas
       /core/         # Config, database connection, dependencies
       /services/     # Business logic layer
