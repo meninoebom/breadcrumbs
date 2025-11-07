@@ -12,9 +12,9 @@ class Visibility(str, Enum):
     published = "published"
 
 
-class CrumbTag(SQLModel, table=True):
-    crumb_id: int = Field(
-        foreign_key="crumb.id",
+class ThemeTag(SQLModel, table=True):
+    theme_id: int = Field(
+        foreign_key="theme.id",
         primary_key=True,
     )
     tag_id: int = Field(
@@ -24,89 +24,91 @@ class CrumbTag(SQLModel, table=True):
     )
 
 
-# ---------- units ----------
-class UnitBase(SQLModel, table=False):
-    name: str = Field(
-        max_length=100, description="Display name for this writing session"
+# ---------- themes ----------
+class ThemeBase(SQLModel, table=False):
+    title: str = Field(
+        max_length=200, description="Theme title"
+    )
+    description_md: Optional[str] = Field(
+        default=None, description="Optional theme intro/context"
+    )
+    visibility: Visibility = Field(
+        default=Visibility.draft, description="The theme's status (draft or published)"
     )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
-        description="When this session was started",
+        description="When this theme was created",
+    )
+    updated_at: Optional[datetime] = Field(
+        default=None, sa_column_kwargs={"onupdate": lambda: datetime.now(timezone.utc)}
     )
 
 
-class Unit(UnitBase, table=True):
-    __tablename__ = "unit"
-    __table_args__ = (Index("idx_unit_name", "name"),)
+class Theme(ThemeBase, table=True):
+    __tablename__ = "theme"
+    __table_args__ = (Index("idx_theme_title", "title"),)
     id: Optional[int] = Field(default=None, primary_key=True)
-    crumbs: List["Crumb"] = Relationship(  # type: ignore
-        back_populates="unit",
+    breadcrumbs: List["Breadcrumb"] = Relationship(  # type: ignore
+        back_populates="theme",
         sa_relationship_kwargs={
             "lazy": "selectin",
         },
     )
-
-    def __str__(self) -> str:
-        return f"Unit(id={self.id}, name={self.name}, created_at={self.created_at})"
-
-
-class UnitCreate(UnitBase, table=False):
-    pass
-
-
-class UnitPublic(UnitBase, table=False):
-    id: int
-
-
-# ---------- crumbs ----------
-class CrumbBase(SQLModel, table=False):
-    body_md: str = Field(description="Markdown content of the crumb")
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: Optional[datetime] = Field(
-        default=None, sa_column_kwargs={"onupdate": lambda: datetime.now(timezone.utc)}
-    )
-    visibility: Visibility = Field(
-        default=Visibility.draft, description="The crumb's status (draft or published)"
-    )
-
-
-# The model for the persisted entity
-class Crumb(CrumbBase, table=True):
-    __tablename__ = "crumb"  # type: ignore
-    __table_args__ = (Index("idx_crumb_created_at", "created_at"),)
-    id: Optional[int] = Field(default=None, primary_key=True)
-
-    # Foreign key to unit (optional)
-    unit_id: Optional[int] = Field(default=None, foreign_key="unit.id")
-    unit: Optional["Unit"] = Relationship(
-        back_populates="crumbs", sa_relationship_kwargs={"lazy": "selectin"}
-    )
-
     # Many-to-many relationship with tags
     tags: List["Tag"] = Relationship(  # type: ignore
-        back_populates="crumbs",
-        link_model=CrumbTag,
+        back_populates="themes",
+        link_model=ThemeTag,
         sa_relationship_kwargs={
-            "lazy": "selectin",  # fetch related rows in a separate but efficient query using IN
-            "passive_deletes": True,  # Defer delete handling to DB (requires ON DELETE CASCADE on the foreign key)
+            "lazy": "selectin",
+            "passive_deletes": True,
         },
     )
 
     def __str__(self) -> str:
-        return f"Crumb of id:{self.id}: {self.body_md[:10]}... created at: {self.created_at}"
+        return f"Theme(id={self.id}, title={self.title}, visibility={self.visibility})"
 
 
-class CrumbCreate(CrumbBase, table=False):
-    unit_name: Optional[str] = Field(
-        default=None, description="Optional unit name for grouping"
-    )
+class ThemeCreate(ThemeBase, table=False):
     tags: List["TagCreate"] = Field(default=[])
 
 
-class CrumbPublic(CrumbBase, table=False):
+class ThemePublic(ThemeBase, table=False):
     id: int
-    unit: Optional["UnitPublic"] = None
     tags: List["TagPublic"] = Field(default=[])
+
+
+# ---------- breadcrumbs ----------
+class BreadcrumbBase(SQLModel, table=False):
+    body_md: str = Field(description="Markdown content of the breadcrumb")
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = Field(
+        default=None, sa_column_kwargs={"onupdate": lambda: datetime.now(timezone.utc)}
+    )
+
+
+# The model for the persisted entity
+class Breadcrumb(BreadcrumbBase, table=True):
+    __tablename__ = "breadcrumb"  # type: ignore
+    __table_args__ = (Index("idx_breadcrumb_created_at", "created_at"),)
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    # Foreign key to theme (required)
+    theme_id: int = Field(foreign_key="theme.id")
+    theme: "Theme" = Relationship(
+        back_populates="breadcrumbs", sa_relationship_kwargs={"lazy": "selectin"}
+    )
+
+    def __str__(self) -> str:
+        return f"Breadcrumb of id:{self.id}: {self.body_md[:10]}... created at: {self.created_at}"
+
+
+class BreadcrumbCreate(BreadcrumbBase, table=False):
+    theme_id: int = Field(description="Required theme ID for this breadcrumb")
+
+
+class BreadcrumbPublic(BreadcrumbBase, table=False):
+    id: int
+    theme: "ThemePublic" = None  # type: ignore
 
 
 # ---------- tags ----------
@@ -134,9 +136,9 @@ class Tag(TagBase, table=True):
     __tablename__ = "tag"
     __table_args__ = (Index("uq_tag_name_lower_idx", text("lower(name)"), unique=True),)
     id: Optional[int] = Field(default=None, primary_key=True)
-    crumbs: List["Crumb"] = Relationship(  # type: ignore
+    themes: List["Theme"] = Relationship(  # type: ignore
         back_populates="tags",
-        link_model=CrumbTag,
+        link_model=ThemeTag,
         sa_relationship_kwargs={
             "lazy": "selectin",  # fetch related rows in a separate but efficient query using IN
             "passive_deletes": True,  # Defer delete handling to DB (requires ON DELETE CASCADE on the foreign key)
