@@ -13,6 +13,7 @@ class Visibility(str, Enum):
 
 
 class ThemeTag(SQLModel, table=True):
+    __tablename__ = "theme_tag"
     theme_id: int = Field(
         foreign_key="theme.id",
         primary_key=True,
@@ -108,7 +109,7 @@ class BreadcrumbCreate(BreadcrumbBase, table=False):
 
 class BreadcrumbPublic(BreadcrumbBase, table=False):
     id: int
-    theme: "ThemePublic" = None  # type: ignore
+    theme: Optional["ThemePublic"] = None  # type: ignore
 
 
 # ---------- tags ----------
