@@ -6,7 +6,7 @@ from sqlmodel import Session, SQLModel, create_engine
 from sqlmodel.pool import StaticPool
 
 # Import models to ensure they're registered before creating tables
-from app.models import Crumb, Tag, Unit, CrumbTag
+from app.models import Breadcrumb, Tag, Theme, ThemeTag
 
 
 @pytest.fixture(name="session")

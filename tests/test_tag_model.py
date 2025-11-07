@@ -3,7 +3,7 @@
 import pytest
 from sqlmodel import Session, select
 
-from app.models import Tag, Crumb
+from app.models import Tag, Theme
 
 
 def test_tag_create_minimal(session: Session):
@@ -68,26 +68,26 @@ def test_tag_unique_constraint(session: Session):
         session.commit()
 
 
-def test_tag_with_crumbs(session: Session):
-    """Test creating tags associated with crumbs."""
+def test_tag_with_themes(session: Session):
+    """Test creating tags associated with themes."""
     tag = Tag(name="testing")
     session.add(tag)
     session.commit()
     session.refresh(tag)
 
-    # Create crumbs with this tag
-    crumb1 = Crumb(body_md="First crumb")
-    crumb1.tags = [tag]
-    crumb2 = Crumb(body_md="Second crumb")
-    crumb2.tags = [tag]
+    # Create themes with this tag
+    theme1 = Theme(title="Testing Basics")
+    theme1.tags = [tag]
+    theme2 = Theme(title="Advanced Testing")
+    theme2.tags = [tag]
 
-    session.add_all([crumb1, crumb2])
+    session.add_all([theme1, theme2])
     session.commit()
     session.refresh(tag)
 
-    assert len(tag.crumbs) == 2
-    crumb_bodies = {c.body_md for c in tag.crumbs}
-    assert crumb_bodies == {"First crumb", "Second crumb"}
+    assert len(tag.themes) == 2
+    theme_titles = {t.title for t in tag.themes}
+    assert theme_titles == {"Testing Basics", "Advanced Testing"}
 
 
 def test_tag_display_name(session: Session):
