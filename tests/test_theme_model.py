@@ -25,8 +25,9 @@ def test_theme_create_minimal(session: Session):
 def test_theme_requires_title(session: Session):
     """Test that theme requires a title."""
     # SQLModel validation happens at the Pydantic level
-    with pytest.raises(ValidationError):
-        Theme()  # Missing title
+    # Since title has no default, trying to create Theme without it raises ValidationError
+    with pytest.raises(ValidationError, match="Field required"):
+        Theme.model_validate({})  # Missing required title field
 
 
 def test_theme_with_description(session: Session):
