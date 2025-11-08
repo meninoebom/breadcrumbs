@@ -17,11 +17,13 @@ class ThemeTag(SQLModel, table=True):
     theme_id: int = Field(
         foreign_key="theme.id",
         primary_key=True,
+        ondelete="CASCADE",
     )
     tag_id: int = Field(
         foreign_key="tag.id",
         primary_key=True,
         index=True,
+        ondelete="CASCADE",
     )
 
 
@@ -51,6 +53,7 @@ class Theme(ThemeBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     breadcrumbs: List["Breadcrumb"] = Relationship(  # type: ignore
         back_populates="theme",
+        cascade_delete=True, 
         sa_relationship_kwargs={
             "lazy": "selectin",
         },
@@ -59,9 +62,9 @@ class Theme(ThemeBase, table=True):
     tags: List["Tag"] = Relationship(  # type: ignore
         back_populates="themes",
         link_model=ThemeTag,
+        cascade_delete=True, 
         sa_relationship_kwargs={
             "lazy": "selectin",
-            "passive_deletes": True,
         },
     )
 
@@ -94,7 +97,7 @@ class Breadcrumb(BreadcrumbBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
 
     # Foreign key to theme (required)
-    theme_id: int = Field(foreign_key="theme.id")
+    theme_id: int = Field(foreign_key="theme.id", ondelete="CASCADE")
     theme: "Theme" = Relationship(
         back_populates="breadcrumbs", sa_relationship_kwargs={"lazy": "selectin"}
     )
@@ -140,9 +143,9 @@ class Tag(TagBase, table=True):
     themes: List["Theme"] = Relationship(  # type: ignore
         back_populates="tags",
         link_model=ThemeTag,
+        cascade_delete=True, 
         sa_relationship_kwargs={
             "lazy": "selectin",  # fetch related rows in a separate but efficient query using IN
-            "passive_deletes": True,  # Defer delete handling to DB (requires ON DELETE CASCADE on the foreign key)
         },
     )
 
