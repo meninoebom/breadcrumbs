@@ -53,18 +53,20 @@ class Theme(ThemeBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     breadcrumbs: List["Breadcrumb"] = Relationship(  # type: ignore
         back_populates="theme",
-        cascade_delete=True, 
         sa_relationship_kwargs={
             "lazy": "selectin",
+            "cascade": "all, delete-orphan",
+            "passive_deletes": True,
         },
     )
     # Many-to-many relationship with tags
     tags: List["Tag"] = Relationship(  # type: ignore
         back_populates="themes",
         link_model=ThemeTag,
-        cascade_delete=True, 
         sa_relationship_kwargs={
             "lazy": "selectin",
+            "cascade": "all, delete",
+            "passive_deletes": True,
         },
     )
 
@@ -99,7 +101,8 @@ class Breadcrumb(BreadcrumbBase, table=True):
     # Foreign key to theme (required)
     theme_id: int = Field(foreign_key="theme.id", ondelete="CASCADE")
     theme: "Theme" = Relationship(
-        back_populates="breadcrumbs", sa_relationship_kwargs={"lazy": "selectin"}
+        back_populates="breadcrumbs",
+        sa_relationship_kwargs={"lazy": "selectin"}
     )
 
     def __str__(self) -> str:
@@ -143,9 +146,10 @@ class Tag(TagBase, table=True):
     themes: List["Theme"] = Relationship(  # type: ignore
         back_populates="tags",
         link_model=ThemeTag,
-        cascade_delete=True, 
         sa_relationship_kwargs={
             "lazy": "selectin",  # fetch related rows in a separate but efficient query using IN
+            "cascade": "all, delete",
+            "passive_deletes": True,
         },
     )
 
