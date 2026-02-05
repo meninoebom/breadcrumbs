@@ -147,7 +147,49 @@ Useful slash commands for this project:
 - Writers see both draft and published themes when authenticated
 
 ### Common Patterns
-[To be documented as patterns emerge during development]
+
+**Cascade Delete (Hybrid Approach):**
+Use three together for proper cascade delete behavior:
+1. **Database level:** `ondelete="CASCADE"` in `Field()` - enforces at SQL level
+2. **ORM awareness:** `cascade="all, delete[-orphan]"` in relationship - tells SQLAlchemy what's happening
+3. **Efficiency:** `passive_deletes=True` - uses DB cascade for unloaded collections
+
+**When to use `delete-orphan`:**
+- Existential dependency (child can't exist without parent)
+- Example: Breadcrumb → Theme (breadcrumb without theme is invalid)
+- Deletes children when removed from collection OR parent deleted
+
+**When to use `delete` only:**
+- Independent entities with associations
+- Example: Theme ↔ Tag (both exist independently)
+- Deletes association only, not the entities themselves
+
+**Example:**
+```python
+# One-to-many with orphan deletion (Theme → Breadcrumbs)
+breadcrumbs: List["Breadcrumb"] = Relationship(
+    back_populates="theme",
+    sa_relationship_kwargs={
+        "cascade": "all, delete-orphan",
+        "passive_deletes": True,
+    }
+)
+
+# Many-to-many without orphan deletion (Theme ↔ Tags)
+tags: List["Tag"] = Relationship(
+    back_populates="themes",
+    link_model=ThemeTag,
+    sa_relationship_kwargs={
+        "cascade": "all, delete",
+        "passive_deletes": True,
+    }
+)
+```
+
+**PostgreSQL Table Naming:**
+- Explicitly set `__tablename__` for join tables to follow snake_case convention
+- Example: `__tablename__ = "theme_tag"` (not auto-generated "themetag")
+- Improves readability in psql and aligns with PostgreSQL conventions
 
 ### Gotchas & Known Issues
 
@@ -155,7 +197,20 @@ Useful slash commands for this project:
 - Do NOT use `from __future__ import annotations` - causes relationship resolution errors
 - Use explicit types: `List["Model"]` and `Optional[Type]` instead of `list["Model"]` and `Type | None`
 - Add `# type: ignore` to relationship fields to suppress false type checker warnings
-- Avoid `ondelete` in Field's `sa_column_kwargs` - use relationship-level `passive_deletes=True` instead
+- SQLModel `Relationship()` doesn't accept SQLAlchemy parameters directly - use `sa_relationship_kwargs` dict:
+  ```python
+  # ❌ Wrong - TypeError
+  Relationship(cascade="all, delete", passive_deletes=True)
+
+  # ✅ Correct
+  Relationship(
+      sa_relationship_kwargs={
+          "cascade": "all, delete",
+          "passive_deletes": True,
+      }
+  )
+  ```
+- For cascade deletes: Use `ondelete="CASCADE"` in `Field()` for FK + `cascade` + `passive_deletes` in `Relationship()` (see Common Patterns)
 
 **Pydantic Validators in SQLModel:**
 - Field validators in base classes (table=False) don't apply to table models (table=True)
