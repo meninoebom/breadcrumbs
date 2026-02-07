@@ -1,0 +1,108 @@
+name: "AI-Ready Issue"
+description: "Use this when you want the issue labeled 'AI ready' and scoped for an agent to pick up."
+title: "[AI ready] <short, specific title>"
+labels:
+  - "AI ready"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Fill this out so an agent can pick it up with minimal back-and-forth.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: One sentence: what change are we making and why?
+      placeholder: "Implement X so that Y."
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Repo/path context, links, and any background.
+      placeholder: |
+        - Relevant paths:
+        - Related issues/PRs:
+        - Notes:
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What should be true when this is done?
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: Use checkboxes.
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: non_goals
+    attributes:
+      label: Non-goals / Out of scope
+      placeholder: "What this explicitly does not do."
+
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints / Guardrails (Do not)
+      description: Be explicit about unsafe areas.
+      placeholder: |
+        - Do not change database schema
+        - Do not modify auth flows
+        - Do not add new dependencies
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction Steps (bugs only)
+      description: If this is a bug, provide minimal repro.
+      placeholder: |
+        1) ...
+        2) ...
+
+        Expected:
+        Actual:
+
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification
+      description: How do we know it's correct? Include commands.
+      placeholder: |
+        Automated:
+        - `...`
+
+        Manual QA:
+        1) ...
+        2) ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: risk
+    attributes:
+      label: Risk / Rollback
+      placeholder: |
+        Risk:
+        Rollback:
+
+  - type: textarea
+    id: questions
+    attributes:
+      label: Questions to ask if blocked
+      placeholder: |
+        - ...
