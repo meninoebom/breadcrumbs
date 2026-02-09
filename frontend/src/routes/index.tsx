@@ -16,8 +16,13 @@ function HomePage() {
   const { data: tags, isLoading, error } = useQuery<Tag[]>({
     queryKey: ["tags"],
     queryFn: async () => {
-      const res = await fetch("/api/tags")
-      if (!res.ok) throw new Error("Failed to fetch tags")
+      let res: Response
+      try {
+        res = await fetch("/api/tags")
+      } catch {
+        throw new Error("Cannot reach the API. Is the backend running on port 8000?")
+      }
+      if (!res.ok) throw new Error(`Failed to fetch tags (${res.status})`)
       return res.json()
     },
   })
@@ -30,6 +35,8 @@ function HomePage() {
     return <p className="text-destructive">Error: {error.message}</p>
   }
 
+  if (!tags) return null
+
   return (
     <div className="space-y-6">
       <div className="space-y-2">
@@ -39,7 +46,7 @@ function HomePage() {
         </p>
       </div>
 
-      {tags && tags.length > 0 ? (
+      {tags.length > 0 ? (
         <div className="flex flex-wrap gap-2">
           {tags.map((tag) => (
             <Button key={tag.id} variant="secondary" size="sm">
