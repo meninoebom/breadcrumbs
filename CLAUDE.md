@@ -11,12 +11,16 @@
 
 ## Development Workflow
 
-This project uses AI-assisted development with the following structure:
-- `CLAUDE.md` (this file) - Project conventions and patterns
-- `llms.txt` - Public documentation for LLM discovery
-- `.llm/` - Private workspace for active development state (gitignored)
-  - `active-plan.md` - Current work, TODOs, blockers
-  - `codebase-overview.md` - Living architectural analysis
+**Tracking what's next:**
+- `docs/roadmap.md` — Phases and milestones (updated when phases complete)
+- GitHub Issues — Individual tasks with acceptance criteria (the backlog)
+- `CLAUDE.md` (this file) — Conventions, patterns, gotchas (updated when you learn something permanent)
+
+**Other docs:**
+- `llms.txt` — Public documentation for LLM discovery
+- `docs/log/` — Learning journal entries (post-PR reflections)
+
+**Starting a session:** Run `gh issue list` to see what's next. Read `docs/roadmap.md` for big picture.
 
 ## Code Conventions
 
@@ -75,16 +79,17 @@ This project uses AI-assisted development with the following structure:
 ### Git Workflow
 - Branch naming: `feature/description` or `fix/description`
 - Commit format: `type: description` (feat, fix, docs, refactor, test)
-- PR requirements: [Define review process as team grows]
+- PRs reviewed via `/pr-review-toolkit:review-pr` before merge
 
-## Key Commands
+### Post-PR Learning Reflection
+After each PR, offer:
+> "This might be worth a log entry — want to reflect on it, or skip?"
 
-Useful slash commands for this project:
-- `/create-active-plan` - Update work plan with codebase research
-- `/generate-codebase-overview` - Regenerate architectural overview
-- `/work-gh-issue [number]` - Implement GitHub issue on feature branch
-- `/dev-experiment [goal]` - Experiment-driven development with feedback loop
-- `/create-gh-issue-from-active-plan` - Create GitHub issues from active plan
+**Skip-worthy:** Typos, dependency bumps, minor CSS, config changes.
+**Log-worthy:** Features, architecture decisions, milestones, workflow learnings.
+
+If yes, create `docs/log/NNN-slug.md` and update the README.md index.
+See `docs/log/README.md` for format and dimensions.
 
 ## Project-Specific Notes
 
