@@ -78,6 +78,13 @@ class ThemeCreate(ThemeBase, table=False):
     tags: List["TagCreate"] = Field(default=[])
 
 
+class ThemeUpdate(SQLModel, table=False):
+    title: Optional[str] = None
+    description_md: Optional[str] = None
+    visibility: Optional[Visibility] = None
+    tags: Optional[List["TagCreate"]] = None
+
+
 class ThemePublic(ThemeBase, table=False):
     id: int
     tags: List["TagPublic"] = Field(default=[])
@@ -164,3 +171,9 @@ class TagCreate(TagBase):
 
 class TagPublic(TagBase):
     id: int
+
+
+class TagWithCount(SQLModel, table=False):
+    id: int
+    name: str
+    theme_count: int

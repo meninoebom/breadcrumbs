@@ -4,14 +4,19 @@ import os
 from typing import Generator
 
 from dotenv import load_dotenv
-from sqlmodel import Session, create_engine, event
+from sqlalchemy import event
 from sqlalchemy.engine import Engine
+from sqlmodel import Session, create_engine
 
 
 @event.listens_for(Engine, "connect")
 def set_sqlite_pragma(dbapi_connection, connection_record):
-    # the sqlite3 driver will not set PRAGMA foreign_keys
-    # if autocommit=False; set to True temporarily
+    """Enable foreign key enforcement for SQLite connections only."""
+    import sqlite3
+
+    if not isinstance(dbapi_connection, sqlite3.Connection):
+        return
+
     ac = dbapi_connection.autocommit
     dbapi_connection.autocommit = True
 
@@ -19,7 +24,6 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
     cursor.execute("PRAGMA foreign_keys=ON")
     cursor.close()
 
-    # restore previous autocommit setting
     dbapi_connection.autocommit = ac
 
 load_dotenv()
