@@ -134,3 +134,47 @@ def test_delete_breadcrumb_not_found(client):
         f"/themes/{theme_id}/breadcrumbs/999"
     )
     assert response.status_code == 404
+
+
+# ---------- theme-mismatch guards ----------
+
+
+def test_update_breadcrumb_wrong_theme(client):
+    """PUT a breadcrumb via a different theme's URL returns 404."""
+    r1 = client.post("/themes", json={"title": "Theme A"})
+    r2 = client.post("/themes", json={"title": "Theme B"})
+    theme_a_id = r1.json()["id"]
+    theme_b_id = r2.json()["id"]
+
+    r = client.post(
+        f"/themes/{theme_a_id}/breadcrumbs",
+        json={"body_md": "Belongs to A"},
+    )
+    bc_id = r.json()["id"]
+
+    response = client.put(
+        f"/themes/{theme_b_id}/breadcrumbs/{bc_id}",
+        json={"body_md": "Sneaky update"},
+    )
+    assert response.status_code == 404
+
+
+def test_delete_breadcrumb_wrong_theme(client):
+    """DELETE a breadcrumb via a different theme's URL returns 404."""
+    r1 = client.post("/themes", json={"title": "Theme A"})
+    r2 = client.post("/themes", json={"title": "Theme B"})
+    theme_a_id = r1.json()["id"]
+    theme_b_id = r2.json()["id"]
+
+    r = client.post(
+        f"/themes/{theme_a_id}/breadcrumbs",
+        json={"body_md": "Belongs to A"},
+    )
+    bc_id = r.json()["id"]
+
+    response = client.delete(f"/themes/{theme_b_id}/breadcrumbs/{bc_id}")
+    assert response.status_code == 404
+
+    # Breadcrumb should still exist under the correct theme
+    response = client.get(f"/themes/{theme_a_id}/breadcrumbs")
+    assert len(response.json()) == 1

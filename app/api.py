@@ -1,6 +1,8 @@
+import re
 from typing import Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Query
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, col, func, or_, select
 
 from app.db import get_session
@@ -21,8 +23,15 @@ from app.models import (
 
 app = FastAPI(title="Breadcrumbs API")
 
+THEME_UPDATABLE_FIELDS = {"title", "description_md", "visibility"}
+
 
 # ---------- helpers ----------
+
+
+def escape_like(s: str) -> str:
+    """Escape LIKE/ILIKE wildcard characters so they match literally."""
+    return re.sub(r"([%_\\])", r"\\\1", s)
 
 
 def get_or_create_tags(session: Session, tag_creates: list[TagCreate]) -> list[Tag]:
@@ -37,7 +46,17 @@ def get_or_create_tags(session: Session, tag_creates: list[TagCreate]) -> list[T
         else:
             tag = Tag(name=tc.name)
             session.add(tag)
-            session.flush()
+            try:
+                session.flush()
+            except IntegrityError:
+                session.rollback()
+                existing = session.exec(
+                    select(Tag).where(func.lower(Tag.name) == tc.name.lower())
+                ).first()
+                if not existing:
+                    raise
+                tags.append(existing)
+                continue
             tags.append(tag)
     return tags
 
@@ -55,7 +74,7 @@ def create_theme(
     theme = Theme(**theme_data)
     theme.tags = tags
     session.add(theme)
-    session.commit()
+    session.flush()
     session.refresh(theme)
     return theme
 
@@ -80,10 +99,11 @@ def list_themes(
         )
 
     if q:
+        safe_q = escape_like(q)
         statement = statement.where(
             or_(
-                col(Theme.title).ilike(f"%{q}%"),
-                Theme.breadcrumbs.any(col(Breadcrumb.body_md).ilike(f"%{q}%")),
+                col(Theme.title).ilike(f"%{safe_q}%"),
+                Theme.breadcrumbs.any(col(Breadcrumb.body_md).ilike(f"%{safe_q}%")),
             )
         )
 
@@ -117,13 +137,15 @@ def update_theme(
 
     update_data = theme_update.model_dump(exclude_unset=True, exclude={"tags"})
     for key, value in update_data.items():
+        if key not in THEME_UPDATABLE_FIELDS:
+            raise HTTPException(status_code=400, detail=f"Cannot update field '{key}'")
         setattr(theme, key, value)
 
     if theme_update.tags is not None:
         theme.tags = get_or_create_tags(session, theme_update.tags)
 
     session.add(theme)
-    session.commit()
+    session.flush()
     session.refresh(theme)
     return theme
 
@@ -137,7 +159,7 @@ def delete_theme(
     if not theme:
         raise HTTPException(status_code=404, detail="Theme not found")
     session.delete(theme)
-    session.commit()
+    session.flush()
 
 
 # ---------- breadcrumb endpoints ----------
@@ -162,7 +184,7 @@ def create_breadcrumb(
         theme_id=theme_id,
     )
     session.add(breadcrumb)
-    session.commit()
+    session.flush()
     session.refresh(breadcrumb)
     return breadcrumb
 
@@ -204,7 +226,7 @@ def update_breadcrumb(
 
     breadcrumb.body_md = breadcrumb_in.body_md
     session.add(breadcrumb)
-    session.commit()
+    session.flush()
     session.refresh(breadcrumb)
     return breadcrumb
 
@@ -222,7 +244,7 @@ def delete_breadcrumb(
     if not breadcrumb or breadcrumb.theme_id != theme_id:
         raise HTTPException(status_code=404, detail="Breadcrumb not found")
     session.delete(breadcrumb)
-    session.commit()
+    session.flush()
 
 
 # ---------- tag endpoints ----------

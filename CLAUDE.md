@@ -159,10 +159,11 @@ Use three together for proper cascade delete behavior:
 - Example: Breadcrumb → Theme (breadcrumb without theme is invalid)
 - Deletes children when removed from collection OR parent deleted
 
-**When to use `delete` only:**
-- Independent entities with associations
+**When to use `save-update, merge` only (many-to-many):**
+- Independent entities linked by a join table
 - Example: Theme ↔ Tag (both exist independently)
-- Deletes association only, not the entities themselves
+- DB-level `ondelete="CASCADE"` on the join table FKs handles link row cleanup
+- Do NOT use `cascade="all, delete"` — this deletes the *related entities*, not just the association rows
 
 **Example:**
 ```python
@@ -175,12 +176,12 @@ breadcrumbs: List["Breadcrumb"] = Relationship(
     }
 )
 
-# Many-to-many without orphan deletion (Theme ↔ Tags)
+# Many-to-many (Theme ↔ Tags) — link table cleanup via DB cascade
 tags: List["Tag"] = Relationship(
     back_populates="themes",
     link_model=ThemeTag,
     sa_relationship_kwargs={
-        "cascade": "all, delete",
+        "cascade": "save-update, merge",
         "passive_deletes": True,
     }
 )

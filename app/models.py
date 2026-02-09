@@ -65,7 +65,7 @@ class Theme(ThemeBase, table=True):
         link_model=ThemeTag,
         sa_relationship_kwargs={
             "lazy": "selectin",
-            "cascade": "all, delete",
+            "cascade": "save-update, merge",
             "passive_deletes": True,
         },
     )
@@ -79,7 +79,7 @@ class ThemeCreate(ThemeBase, table=False):
 
 
 class ThemeUpdate(SQLModel, table=False):
-    title: Optional[str] = None
+    title: Optional[str] = Field(default=None, max_length=200)
     description_md: Optional[str] = None
     visibility: Optional[Visibility] = None
     tags: Optional[List["TagCreate"]] = None
@@ -154,8 +154,8 @@ class Tag(TagBase, table=True):
         back_populates="tags",
         link_model=ThemeTag,
         sa_relationship_kwargs={
-            "lazy": "selectin",  # fetch related rows in a separate but efficient query using IN
-            "cascade": "all, delete",
+            "lazy": "selectin",
+            "cascade": "save-update, merge",
             "passive_deletes": True,
         },
     )

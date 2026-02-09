@@ -243,6 +243,30 @@ def test_delete_theme_cascades_to_breadcrumbs(client, session):
     assert len(breadcrumbs) == 0
 
 
+def test_delete_theme_leaves_tags_intact(client, session):
+    """Deleting a theme removes the association but the tag itself survives."""
+    r = client.post(
+        "/themes",
+        json={"title": "Tagged Theme", "tags": [{"name": "keeper"}]},
+    )
+    theme_id = r.json()["id"]
+
+    client.delete(f"/themes/{theme_id}")
+
+    # Tag still exists in the database
+    from sqlmodel import select
+    from app.models import Tag
+
+    tags = session.exec(select(Tag).where(Tag.name == "keeper")).all()
+    assert len(tags) == 1
+
+    # But the count via the API should be 0
+    response = client.get("/tags")
+    data = response.json()
+    keeper = next(t for t in data if t["name"] == "keeper")
+    assert keeper["theme_count"] == 0
+
+
 def test_delete_theme_not_found(client):
     response = client.delete("/themes/999")
     assert response.status_code == 404
