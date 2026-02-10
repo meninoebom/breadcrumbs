@@ -81,7 +81,14 @@
 - Commit format: `type: description` (feat, fix, docs, refactor, test)
 - PRs reviewed via `/pr-review-toolkit:review-pr` before merge
 
-### Post-PR Learning Reflection
+### After Completing Work (Agent Self-Assessment)
+Before wrapping up a non-trivial PR, self-assess:
+- What was the hardest decision or trickiest problem?
+- Did anything surprise you or require a workaround?
+- Would a future session benefit from knowing this?
+If yes, update this CLAUDE.md with the pattern or gotcha — don't wait to be asked.
+
+### Post-PR Learning Reflection (Brandon's Journal)
 After each PR, offer:
 > "This might be worth a log entry — want to reflect on it, or skip?"
 
