@@ -29,12 +29,7 @@ class ThemeTag(SQLModel, table=True):
 
 # ---------- themes ----------
 class ThemeBase(SQLModel, table=False):
-    title: str = Field(
-        max_length=200, description="Theme title"
-    )
-    description_md: Optional[str] = Field(
-        default=None, description="Optional theme intro/context"
-    )
+    body_md: str = Field(description="Markdown content of the thought")
     visibility: Visibility = Field(
         default=Visibility.draft, description="The theme's status (draft or published)"
     )
@@ -49,7 +44,6 @@ class ThemeBase(SQLModel, table=False):
 
 class Theme(ThemeBase, table=True):
     __tablename__ = "theme"
-    __table_args__ = (Index("idx_theme_title", "title"),)
     id: Optional[int] = Field(default=None, primary_key=True)
     breadcrumbs: List["Breadcrumb"] = Relationship(  # type: ignore
         back_populates="theme",
@@ -71,7 +65,8 @@ class Theme(ThemeBase, table=True):
     )
 
     def __str__(self) -> str:
-        return f"Theme(id={self.id}, title={self.title}, visibility={self.visibility})"
+        preview = self.body_md[:40] if self.body_md else ""
+        return f"Theme(id={self.id}, body={preview!r}, visibility={self.visibility})"
 
 
 class ThemeCreate(ThemeBase, table=False):
@@ -79,8 +74,7 @@ class ThemeCreate(ThemeBase, table=False):
 
 
 class ThemeUpdate(SQLModel, table=False):
-    title: Optional[str] = Field(default=None, max_length=200)
-    description_md: Optional[str] = None
+    body_md: Optional[str] = None
     visibility: Optional[Visibility] = None
     tags: Optional[List["TagCreate"]] = None
 

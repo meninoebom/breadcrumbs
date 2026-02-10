@@ -10,7 +10,7 @@ from app.models import Breadcrumb, Theme, Visibility
 def test_breadcrumb_create_with_theme(session: Session):
     """Test creating a breadcrumb with a theme (required)."""
     # Create theme first
-    theme = Theme(title="Test Theme")
+    theme = Theme(body_md="Test Theme")
     session.add(theme)
     session.commit()
     session.refresh(theme)
@@ -41,7 +41,7 @@ def test_breadcrumb_requires_theme(session: Session):
 
 def test_breadcrumb_relationship_to_theme(session: Session):
     """Test breadcrumb -> theme relationship."""
-    theme = Theme(title="Morning Thoughts")
+    theme = Theme(body_md="Morning Thoughts")
     session.add(theme)
     session.commit()
     session.refresh(theme)
@@ -52,13 +52,13 @@ def test_breadcrumb_relationship_to_theme(session: Session):
     session.refresh(breadcrumb)
 
     assert breadcrumb.theme is not None
-    assert breadcrumb.theme.title == "Morning Thoughts"
+    assert breadcrumb.theme.body_md == "Morning Thoughts"
 
 
 def test_breadcrumb_save_and_retrieve(session: Session):
     """Test saving a breadcrumb and retrieving it from the database."""
     # Create theme and breadcrumb
-    theme = Theme(title="Test Theme")
+    theme = Theme(body_md="Test Theme")
     session.add(theme)
     session.commit()
     session.refresh(theme)
@@ -81,7 +81,7 @@ def test_breadcrumb_save_and_retrieve(session: Session):
 
 def test_breadcrumb_query_all(session: Session):
     """Test querying all breadcrumbs."""
-    theme = Theme(title="Test Theme")
+    theme = Theme(body_md="Test Theme")
     session.add(theme)
     session.commit()
     session.refresh(theme)
@@ -104,7 +104,7 @@ def test_breadcrumb_query_all(session: Session):
 
 def test_breadcrumb_str_representation(session: Session):
     """Test the string representation of a breadcrumb."""
-    theme = Theme(title="Test Theme")
+    theme = Theme(body_md="Test Theme")
     session.add(theme)
     session.commit()
     session.refresh(theme)
@@ -124,7 +124,7 @@ def test_breadcrumb_str_representation(session: Session):
 
 def test_breadcrumb_order_by_created_at(session: Session):
     """Test ordering breadcrumbs by created_at timestamp."""
-    theme = Theme(title="Test Theme")
+    theme = Theme(body_md="Test Theme")
     session.add(theme)
     session.commit()
     session.refresh(theme)
@@ -153,8 +153,8 @@ def test_breadcrumb_order_by_created_at(session: Session):
 
 def test_breadcrumb_multiple_themes(session: Session):
     """Test that breadcrumbs can belong to different themes."""
-    theme1 = Theme(title="Theme 1")
-    theme2 = Theme(title="Theme 2")
+    theme1 = Theme(body_md="Theme 1")
+    theme2 = Theme(body_md="Theme 2")
     session.add_all([theme1, theme2])
     session.commit()
     session.refresh(theme1)
@@ -167,5 +167,5 @@ def test_breadcrumb_multiple_themes(session: Session):
     session.refresh(breadcrumb1)
     session.refresh(breadcrumb2)
 
-    assert breadcrumb1.theme.title == "Theme 1"
-    assert breadcrumb2.theme.title == "Theme 2"
+    assert breadcrumb1.theme.body_md == "Theme 1"
+    assert breadcrumb2.theme.body_md == "Theme 2"

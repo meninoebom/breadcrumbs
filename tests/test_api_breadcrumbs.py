@@ -5,7 +5,7 @@
 
 
 def test_create_breadcrumb(client):
-    r = client.post("/themes", json={"title": "My Theme"})
+    r = client.post("/themes", json={"body_md": "My Theme"})
     theme_id = r.json()["id"]
 
     response = client.post(
@@ -27,7 +27,7 @@ def test_create_breadcrumb_invalid_theme(client):
 
 
 def test_create_breadcrumb_missing_body(client):
-    r = client.post("/themes", json={"title": "My Theme"})
+    r = client.post("/themes", json={"body_md": "My Theme"})
     theme_id = r.json()["id"]
 
     response = client.post(
@@ -40,7 +40,7 @@ def test_create_breadcrumb_missing_body(client):
 
 
 def test_list_breadcrumbs_empty(client):
-    r = client.post("/themes", json={"title": "Empty Theme"})
+    r = client.post("/themes", json={"body_md": "Empty Theme"})
     theme_id = r.json()["id"]
 
     response = client.get(f"/themes/{theme_id}/breadcrumbs")
@@ -49,7 +49,7 @@ def test_list_breadcrumbs_empty(client):
 
 
 def test_list_breadcrumbs(client):
-    r = client.post("/themes", json={"title": "My Theme"})
+    r = client.post("/themes", json={"body_md": "My Theme"})
     theme_id = r.json()["id"]
 
     client.post(
@@ -75,7 +75,7 @@ def test_list_breadcrumbs_invalid_theme(client):
 
 
 def test_update_breadcrumb(client):
-    r = client.post("/themes", json={"title": "My Theme"})
+    r = client.post("/themes", json={"body_md": "My Theme"})
     theme_id = r.json()["id"]
 
     r = client.post(
@@ -93,7 +93,7 @@ def test_update_breadcrumb(client):
 
 
 def test_update_breadcrumb_not_found(client):
-    r = client.post("/themes", json={"title": "My Theme"})
+    r = client.post("/themes", json={"body_md": "My Theme"})
     theme_id = r.json()["id"]
 
     response = client.put(
@@ -107,7 +107,7 @@ def test_update_breadcrumb_not_found(client):
 
 
 def test_delete_breadcrumb(client):
-    r = client.post("/themes", json={"title": "My Theme"})
+    r = client.post("/themes", json={"body_md": "My Theme"})
     theme_id = r.json()["id"]
 
     r = client.post(
@@ -127,7 +127,7 @@ def test_delete_breadcrumb(client):
 
 
 def test_delete_breadcrumb_not_found(client):
-    r = client.post("/themes", json={"title": "My Theme"})
+    r = client.post("/themes", json={"body_md": "My Theme"})
     theme_id = r.json()["id"]
 
     response = client.delete(
@@ -141,8 +141,8 @@ def test_delete_breadcrumb_not_found(client):
 
 def test_update_breadcrumb_wrong_theme(client):
     """PUT a breadcrumb via a different theme's URL returns 404."""
-    r1 = client.post("/themes", json={"title": "Theme A"})
-    r2 = client.post("/themes", json={"title": "Theme B"})
+    r1 = client.post("/themes", json={"body_md": "Theme A"})
+    r2 = client.post("/themes", json={"body_md": "Theme B"})
     theme_a_id = r1.json()["id"]
     theme_b_id = r2.json()["id"]
 
@@ -161,8 +161,8 @@ def test_update_breadcrumb_wrong_theme(client):
 
 def test_delete_breadcrumb_wrong_theme(client):
     """DELETE a breadcrumb via a different theme's URL returns 404."""
-    r1 = client.post("/themes", json={"title": "Theme A"})
-    r2 = client.post("/themes", json={"title": "Theme B"})
+    r1 = client.post("/themes", json={"body_md": "Theme A"})
+    r2 = client.post("/themes", json={"body_md": "Theme B"})
     theme_a_id = r1.json()["id"]
     theme_b_id = r2.json()["id"]
 

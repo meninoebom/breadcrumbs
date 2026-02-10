@@ -5,7 +5,8 @@ import { ThemeSection } from "@/components/theme-section"
 import { TagBar } from "@/components/tag-bar"
 import { StreamSkeleton } from "@/components/stream-skeleton"
 import { fetchThemes } from "@/lib/api"
-import type { StreamSearch } from "@/lib/types"
+import type { StreamSearch, ThemePublic } from "@/lib/types"
+import { dateKey, formatDateHeading } from "@/lib/utils"
 
 export const Route = createFileRoute("/")({
   component: ReaderStream,
@@ -15,6 +16,21 @@ export const Route = createFileRoute("/")({
   }),
 })
 
+/** Group themes by their created_at date, preserving order within each group. */
+function groupByDate(themes: ThemePublic[]): [string, ThemePublic[]][] {
+  const groups = new Map<string, ThemePublic[]>()
+  for (const theme of themes) {
+    const key = dateKey(theme.created_at)
+    const list = groups.get(key)
+    if (list) {
+      list.push(theme)
+    } else {
+      groups.set(key, [theme])
+    }
+  }
+  return Array.from(groups.entries())
+}
+
 function ReaderStream() {
   const { tag, q } = Route.useSearch()
 
@@ -22,6 +38,8 @@ function ReaderStream() {
     queryKey: ["themes", { visibility: "published", tag, q }],
     queryFn: () => fetchThemes({ visibility: "published", tag, q }),
   })
+
+  const dateGroups = themes ? groupByDate(themes) : []
 
   return (
     <div className="space-y-6">
@@ -40,20 +58,27 @@ function ReaderStream() {
           </p>
           {!tag && !q && (
             <p className="text-sm text-muted-foreground">
-              When themes are published, they'll appear here as a continuous
+              When themes are published, they&apos;ll appear here as a continuous
               stream.
             </p>
           )}
         </div>
       )}
 
-      {themes && themes.length > 0 && (
-        <div>
-          {themes.map((theme, index) => (
-            <div key={theme.id}>
-              {index > 0 && <hr className="my-8 border-border" />}
-              <ThemeSection theme={theme} />
-            </div>
+      {dateGroups.length > 0 && (
+        <div className="space-y-10">
+          {dateGroups.map(([key, groupThemes]) => (
+            <section key={key}>
+              <h2 className="text-xl font-semibold tracking-tight mb-6">
+                {formatDateHeading(groupThemes[0].created_at)}
+              </h2>
+
+              <div className="space-y-8 pl-4 border-l-2 border-border">
+                {groupThemes.map((theme) => (
+                  <ThemeSection key={theme.id} theme={theme} />
+                ))}
+              </div>
+            </section>
           ))}
         </div>
       )}

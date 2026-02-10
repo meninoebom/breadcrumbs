@@ -76,9 +76,9 @@ def test_tag_with_themes(session: Session):
     session.refresh(tag)
 
     # Create themes with this tag
-    theme1 = Theme(title="Testing Basics")
+    theme1 = Theme(body_md="Testing Basics")
     theme1.tags = [tag]
-    theme2 = Theme(title="Advanced Testing")
+    theme2 = Theme(body_md="Advanced Testing")
     theme2.tags = [tag]
 
     session.add_all([theme1, theme2])
@@ -86,8 +86,8 @@ def test_tag_with_themes(session: Session):
     session.refresh(tag)
 
     assert len(tag.themes) == 2
-    theme_titles = {t.title for t in tag.themes}
-    assert theme_titles == {"Testing Basics", "Advanced Testing"}
+    theme_bodies = {t.body_md for t in tag.themes}
+    assert theme_bodies == {"Testing Basics", "Advanced Testing"}
 
 
 def test_tag_display_name(session: Session):

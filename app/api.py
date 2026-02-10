@@ -23,7 +23,7 @@ from app.models import (
 
 app = FastAPI(title="Breadcrumbs API")
 
-THEME_UPDATABLE_FIELDS = {"title", "description_md", "visibility"}
+THEME_UPDATABLE_FIELDS = {"body_md", "visibility"}
 
 
 # ---------- helpers ----------
@@ -102,7 +102,7 @@ def list_themes(
         safe_q = escape_like(q)
         statement = statement.where(
             or_(
-                col(Theme.title).ilike(f"%{safe_q}%"),
+                col(Theme.body_md).ilike(f"%{safe_q}%"),
                 Theme.breadcrumbs.any(col(Breadcrumb.body_md).ilike(f"%{safe_q}%")),
             )
         )

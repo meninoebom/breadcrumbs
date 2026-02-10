@@ -15,8 +15,7 @@ export type Visibility = "draft" | "published"
 
 export interface ThemePublic {
   id: number
-  title: string
-  description_md: string | null
+  body_md: string
   visibility: Visibility
   created_at: string
   updated_at: string | null
@@ -38,4 +37,23 @@ export interface TagWithCount extends TagPublic {
 export interface StreamSearch {
   tag?: string
   q?: string
+}
+
+/** Input for POST /themes */
+export interface ThemeCreateInput {
+  body_md: string
+  visibility?: Visibility
+  tags?: { name: string }[]
+}
+
+/** Input for PUT /themes/{id} — all fields optional (partial update) */
+export interface ThemeUpdateInput {
+  body_md?: string
+  visibility?: Visibility
+  tags?: { name: string }[]
+}
+
+/** Input for POST/PUT breadcrumbs */
+export interface BreadcrumbInput {
+  body_md: string
 }
