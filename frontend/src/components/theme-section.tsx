@@ -6,7 +6,11 @@ import { fetchBreadcrumbs } from "@/lib/api"
 import type { ThemePublic } from "@/lib/types"
 import { cn, formatDate } from "@/lib/utils"
 
-export function ThemeSection({ theme }: { theme: ThemePublic }) {
+interface ThemeSectionProps {
+  theme: ThemePublic
+}
+
+export function ThemeSection({ theme }: ThemeSectionProps) {
   const {
     data: breadcrumbs,
     isLoading,
@@ -47,7 +51,9 @@ export function ThemeSection({ theme }: { theme: ThemePublic }) {
       {isLoading && <BreadcrumbSkeleton />}
 
       {error && (
-        <p className="text-sm text-destructive">Failed to load breadcrumbs</p>
+        <p className="text-sm text-destructive">
+          Failed to load breadcrumbs: {error.message}
+        </p>
       )}
 
       {breadcrumbs && breadcrumbs.length > 0 && (

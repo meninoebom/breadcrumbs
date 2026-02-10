@@ -11,11 +11,13 @@ export interface TagPublic {
   name: string
 }
 
+export type Visibility = "draft" | "published"
+
 export interface ThemePublic {
   id: number
   title: string
   description_md: string | null
-  visibility: string
+  visibility: Visibility
   created_at: string
   updated_at: string | null
   tags: TagPublic[]
