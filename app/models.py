@@ -29,7 +29,7 @@ class ThemeTag(SQLModel, table=True):
 
 # ---------- themes ----------
 class ThemeBase(SQLModel, table=False):
-    body_md: str = Field(description="Markdown content of the thought")
+    body_md: str = Field(min_length=1, description="Markdown content of the thought")
     visibility: Visibility = Field(
         default=Visibility.draft, description="The theme's status (draft or published)"
     )

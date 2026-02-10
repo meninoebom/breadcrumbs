@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { Pencil, Trash2, Check, X } from "lucide-react"
 import Markdown from "react-markdown"
@@ -28,6 +28,13 @@ export function BreadcrumbItem({ breadcrumb, themeId }: BreadcrumbItemProps) {
   const queryClient = useQueryClient()
   const [editing, setEditing] = useState(false)
   const [bodyMd, setBodyMd] = useState(breadcrumb.body_md)
+
+  // Sync local state when prop changes (e.g. after mutation + refetch)
+  useEffect(() => {
+    if (!editing) {
+      setBodyMd(breadcrumb.body_md)
+    }
+  }, [breadcrumb.body_md, editing])
 
   const editMutation = useMutation({
     mutationFn: (data: { body_md: string }) =>

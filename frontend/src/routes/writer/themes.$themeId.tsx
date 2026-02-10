@@ -14,6 +14,20 @@ function ThemeEditor() {
   const { themeId } = Route.useParams()
   const id = Number(themeId)
 
+  if (Number.isNaN(id) || id <= 0) {
+    return (
+      <div className="py-12 text-center space-y-4">
+        <p className="text-muted-foreground">Invalid theme ID.</p>
+        <Link
+          to="/writer"
+          className="text-sm text-muted-foreground hover:text-foreground no-underline"
+        >
+          &larr; Back to dashboard
+        </Link>
+      </div>
+    )
+  }
+
   const {
     data: theme,
     isLoading: themeLoading,
@@ -26,6 +40,7 @@ function ThemeEditor() {
   const {
     data: breadcrumbs,
     isLoading: breadcrumbsLoading,
+    error: breadcrumbsError,
   } = useQuery({
     queryKey: ["themes", id, "breadcrumbs"],
     queryFn: () => fetchBreadcrumbs(id),
@@ -70,6 +85,12 @@ function ThemeEditor() {
         </h3>
 
         {breadcrumbsLoading && <BreadcrumbsSkeleton />}
+
+        {breadcrumbsError && (
+          <p className="text-sm text-destructive">
+            Failed to load breadcrumbs: {breadcrumbsError.message}
+          </p>
+        )}
 
         {breadcrumbs && breadcrumbs.length === 0 && (
           <p className="text-sm text-muted-foreground py-4">

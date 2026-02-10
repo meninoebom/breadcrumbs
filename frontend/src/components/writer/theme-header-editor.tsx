@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useNavigate } from "@tanstack/react-router"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import Markdown from "react-markdown"
@@ -46,6 +46,14 @@ export function ThemeHeaderEditor({ theme }: ThemeHeaderEditorProps) {
   const [editing, setEditing] = useState(false)
   const [body, setBody] = useState(theme.body_md)
   const [tags, setTags] = useState(tagsToString(theme.tags))
+
+  // Sync local state when theme prop changes (e.g. after mutation + refetch)
+  useEffect(() => {
+    if (!editing) {
+      setBody(theme.body_md)
+      setTags(tagsToString(theme.tags))
+    }
+  }, [theme.body_md, theme.tags, editing])
 
   const updateMutation = useMutation({
     mutationFn: (data: Parameters<typeof updateTheme>[1]) =>
