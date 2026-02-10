@@ -8,6 +8,7 @@ import {
 } from "@tanstack/react-router"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { Search } from "lucide-react"
+import type { StreamSearch } from "@/lib/types"
 
 const TanStackRouterDevtools = import.meta.env.PROD
   ? () => null
@@ -38,17 +39,20 @@ export const Route = createRootRoute({
 function SearchBar() {
   const navigate = useNavigate()
   const currentQ = useRouterState({
-    select: (s) => (s.location.search as { q?: string }).q ?? "",
+    select: (s) => {
+      const search = s.location.search as Record<string, unknown>
+      return typeof search?.q === "string" ? search.q : ""
+    },
   })
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    const formData = new FormData(e.currentTarget)
-    const q = (formData.get("q") as string).trim()
+    const raw = new FormData(e.currentTarget).get("q")
+    const q = typeof raw === "string" ? raw.trim() : ""
     navigate({
       to: "/",
-      search: (prev) => ({
-        ...(prev as { tag?: string }),
+      search: (prev: StreamSearch) => ({
+        tag: prev.tag,
         q: q || undefined,
       }),
     })

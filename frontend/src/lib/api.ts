@@ -62,7 +62,7 @@ function buildQueryString(
 export function fetchThemes(
   params?: ThemeSearchParams,
 ): Promise<ThemePublic[]> {
-  const url = `/api/themes${buildQueryString(params && { ...params })}`
+  const url = `/api/themes${buildQueryString(params as Record<string, string | number | undefined>)}`
   return apiFetch(url, "themes")
 }
 
@@ -76,9 +76,3 @@ export function fetchTags(): Promise<TagWithCount[]> {
   return apiFetch("/api/tags", "tags")
 }
 
-export function fetchThemesByTag(tagName: string): Promise<ThemePublic[]> {
-  return apiFetch(
-    `/api/tags/${encodeURIComponent(tagName)}/themes`,
-    "themes",
-  )
-}

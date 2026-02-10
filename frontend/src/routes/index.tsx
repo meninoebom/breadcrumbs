@@ -5,11 +5,7 @@ import { ThemeSection } from "@/components/theme-section"
 import { TagBar } from "@/components/tag-bar"
 import { StreamSkeleton } from "@/components/stream-skeleton"
 import { fetchThemes } from "@/lib/api"
-
-interface StreamSearch {
-  tag?: string
-  q?: string
-}
+import type { StreamSearch } from "@/lib/types"
 
 export const Route = createFileRoute("/")({
   component: ReaderStream,
@@ -23,7 +19,7 @@ function ReaderStream() {
   const { tag, q } = Route.useSearch()
 
   const { data: themes, isLoading, error } = useQuery({
-    queryKey: ["themes", { visibility: "published" as const, tag, q }],
+    queryKey: ["themes", { visibility: "published", tag, q }],
     queryFn: () => fetchThemes({ visibility: "published", tag, q }),
   })
 

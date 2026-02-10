@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router"
 import { useQuery } from "@tanstack/react-query"
 import { ThemeSection } from "@/components/theme-section"
 import { StreamSkeleton } from "@/components/stream-skeleton"
-import { fetchThemesByTag } from "@/lib/api"
+import { fetchThemes } from "@/lib/api"
 
 export const Route = createFileRoute("/tags/$tagName/themes")({
   component: TagThemesPage,
@@ -12,8 +12,8 @@ function TagThemesPage() {
   const { tagName } = Route.useParams()
 
   const { data: themes, isLoading, error } = useQuery({
-    queryKey: ["tags", tagName, "themes"],
-    queryFn: () => fetchThemesByTag(tagName),
+    queryKey: ["themes", { visibility: "published", tag: tagName }],
+    queryFn: () => fetchThemes({ visibility: "published", tag: tagName }),
   })
 
   return (

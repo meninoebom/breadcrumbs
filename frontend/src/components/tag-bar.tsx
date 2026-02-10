@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"
 import { buttonVariants } from "@/components/ui/button"
 import { fetchTags } from "@/lib/api"
+import type { StreamSearch } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 interface TagBarProps {
@@ -9,10 +10,15 @@ interface TagBarProps {
 }
 
 export function TagBar({ activeTag }: TagBarProps) {
-  const { data: tags } = useQuery({
+  const { data: tags, error } = useQuery({
     queryKey: ["tags"],
     queryFn: fetchTags,
   })
+
+  if (error) {
+    console.error("Failed to load tags:", error.message)
+    return null
+  }
 
   if (!tags || tags.length === 0) return null
 
@@ -20,7 +26,7 @@ export function TagBar({ activeTag }: TagBarProps) {
     <div className="flex flex-wrap gap-1.5">
       <Link
         to="/"
-        search={(prev) => ({ q: (prev as { q?: string }).q })}
+        search={(prev: StreamSearch) => ({ q: prev.q })}
         className={cn(
           buttonVariants({
             variant: activeTag ? "secondary" : "default",
@@ -35,10 +41,7 @@ export function TagBar({ activeTag }: TagBarProps) {
         <Link
           key={tag.id}
           to="/"
-          search={(prev) => ({
-            ...(prev as { q?: string }),
-            tag: tag.name,
-          })}
+          search={(prev: StreamSearch) => ({ q: prev.q, tag: tag.name })}
           className={cn(
             buttonVariants({
               variant: activeTag === tag.name ? "default" : "secondary",

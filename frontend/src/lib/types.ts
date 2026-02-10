@@ -30,8 +30,12 @@ export interface BreadcrumbPublic {
   updated_at: string | null
 }
 
-export interface TagWithCount {
-  id: number
-  name: string
+export interface TagWithCount extends TagPublic {
   theme_count: number
+}
+
+/** Search params for the index route. Shared across components that link to "/". */
+export interface StreamSearch {
+  tag?: string
+  q?: string
 }
