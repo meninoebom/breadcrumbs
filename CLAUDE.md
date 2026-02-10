@@ -108,7 +108,7 @@ See `docs/log/README.md` for format and dimensions.
 - **Authenticated editing:** Writers login to see unpublished themes and edit existing ones
 - **Easy to read:** Continuous stream presentation with clear theme boundaries (not traditional blog articles)
 - **Tag browsing:** Readers browse tags alphabetically and filter themes by tag
-- **Search:** Full-text search across theme titles, breadcrumb content, and tags
+- **Search:** Full-text search across theme bodies, breadcrumb content, and tags
 - **Timestamps:** Every breadcrumb has a timestamp
 - **Markdown rendering:** Full markdown support for formatting
 
@@ -123,14 +123,13 @@ See `docs/log/README.md` for format and dimensions.
 ### Data Model
 **Theme:**
 - `id` - Primary key
-- `title` - Required display name for the theme (e.g., "React Hooks Deep Dive", "Morning Thoughts on Architecture")
-- `description_md` - Optional markdown intro/context for the theme
+- `body_md` - Required markdown content (the thought itself, e.g., "The past and future are ghosts...")
 - `visibility` - Enum: draft or published (controls reader visibility)
 - `created_at` - When theme was created
 - `updated_at` - Last modified datetime
 - `breadcrumbs` - Relationship to breadcrumbs (one-to-many)
 - `tags` - Relationship to tags (many-to-many via ThemeTag)
-- **Purpose:** Topical container for related breadcrumbs. Themes are the primary organizational unit, providing clear boundaries in the continuous stream. Tags and visibility are managed at theme level.
+- **Purpose:** A thought that can have sub-thoughts (breadcrumbs). Themes are the primary organizational unit. Tags and visibility are managed at theme level.
 
 **Breadcrumb:**
 - `id` - Primary key
@@ -150,10 +149,10 @@ See `docs/log/README.md` for format and dimensions.
 - `tag_id` - Foreign key to Tag
 
 **Relationship Design:**
-- **Themes = Topical grouping**: Container for related breadcrumbs with title, tags, and visibility
-- **Breadcrumbs = Content atoms**: Individual thoughts that belong to exactly one theme
+- **Themes = Thoughts**: Primary content units with body, tags, and visibility
+- **Breadcrumbs = Sub-thoughts**: Individual thought atoms that belong to exactly one theme
 - **Tags = Discovery mechanism**: Applied to themes for filtering and browsing
-- Themes must have a title and can have 0+ tags
+- Themes must have body_md and can have 0+ tags
 - Breadcrumbs must belong to exactly one theme
 - Only published themes (and their breadcrumbs) are visible to readers
 - Writers see both draft and published themes when authenticated

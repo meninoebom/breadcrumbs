@@ -7,7 +7,7 @@ import {
   useRouterState,
 } from "@tanstack/react-router"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { Search } from "lucide-react"
+import { Search, PenLine } from "lucide-react"
 import type { StreamSearch } from "@/lib/types"
 
 const TanStackRouterDevtools = import.meta.env.PROD
@@ -74,6 +74,10 @@ function SearchBar() {
 }
 
 function RootLayout() {
+  const isWriterRoute = useRouterState({
+    select: (s) => s.location.pathname.startsWith("/writer"),
+  })
+
   return (
     <QueryClientProvider client={queryClient}>
       <div className="min-h-screen bg-background text-foreground">
@@ -86,7 +90,16 @@ function RootLayout() {
             >
               Breadcrumbs
             </Link>
-            <SearchBar />
+            <div className="flex items-center gap-3">
+              {!isWriterRoute && <SearchBar />}
+              <Link
+                to="/writer"
+                className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground no-underline"
+              >
+                <PenLine className="size-4" />
+                Writer
+              </Link>
+            </div>
           </div>
         </header>
         <main className="mx-auto max-w-3xl px-6 py-8">

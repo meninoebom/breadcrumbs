@@ -1,7 +1,10 @@
 import type {
+  BreadcrumbInput,
   BreadcrumbPublic,
   TagWithCount,
+  ThemeCreateInput,
   ThemePublic,
+  ThemeUpdateInput,
   Visibility,
 } from "./types"
 
@@ -74,5 +77,117 @@ export function fetchBreadcrumbs(
 
 export function fetchTags(): Promise<TagWithCount[]> {
   return apiFetch("/api/tags", "tags")
+}
+
+// ---------------------------------------------------------------------------
+// Mutation helper (POST / PUT / DELETE)
+// ---------------------------------------------------------------------------
+
+async function apiMutate<T = void>(
+  url: string,
+  { method, body, label }: { method: string; body?: unknown; label: string },
+): Promise<T> {
+  let res: Response
+  try {
+    res = await fetch(url, {
+      method,
+      headers: body ? { "Content-Type": "application/json" } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    })
+  } catch (err) {
+    throw new Error(
+      "Cannot reach the API. Is the backend running? (uv run dev)",
+      { cause: err },
+    )
+  }
+  if (!res.ok) {
+    let detail = ""
+    try {
+      const b = await res.json()
+      detail = typeof b.detail === "string" ? b.detail : JSON.stringify(b.detail)
+    } catch {
+      // Response body wasn't JSON
+    }
+    throw new Error(
+      `Failed to ${label} (${res.status})${detail ? `: ${detail}` : ""}`,
+    )
+  }
+  if (res.status === 204) return undefined as T
+  return res.json()
+}
+
+// ---------------------------------------------------------------------------
+// Single-theme fetch
+// ---------------------------------------------------------------------------
+
+export function fetchTheme(themeId: number): Promise<ThemePublic> {
+  return apiFetch(`/api/themes/${themeId}`, "theme")
+}
+
+// ---------------------------------------------------------------------------
+// Theme mutations
+// ---------------------------------------------------------------------------
+
+export function createTheme(data: ThemeCreateInput): Promise<ThemePublic> {
+  return apiMutate("/api/themes", {
+    method: "POST",
+    body: data,
+    label: "create theme",
+  })
+}
+
+export function updateTheme(
+  themeId: number,
+  data: ThemeUpdateInput,
+): Promise<ThemePublic> {
+  return apiMutate(`/api/themes/${themeId}`, {
+    method: "PUT",
+    body: data,
+    label: "update theme",
+  })
+}
+
+export function deleteTheme(themeId: number): Promise<void> {
+  return apiMutate(`/api/themes/${themeId}`, {
+    method: "DELETE",
+    label: "delete theme",
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Breadcrumb mutations
+// ---------------------------------------------------------------------------
+
+export function createBreadcrumb(
+  themeId: number,
+  data: BreadcrumbInput,
+): Promise<BreadcrumbPublic> {
+  return apiMutate(`/api/themes/${themeId}/breadcrumbs`, {
+    method: "POST",
+    body: data,
+    label: "create breadcrumb",
+  })
+}
+
+export function updateBreadcrumb(
+  themeId: number,
+  breadcrumbId: number,
+  data: BreadcrumbInput,
+): Promise<BreadcrumbPublic> {
+  return apiMutate(`/api/themes/${themeId}/breadcrumbs/${breadcrumbId}`, {
+    method: "PUT",
+    body: data,
+    label: "update breadcrumb",
+  })
+}
+
+export function deleteBreadcrumb(
+  themeId: number,
+  breadcrumbId: number,
+): Promise<void> {
+  return apiMutate(`/api/themes/${themeId}/breadcrumbs/${breadcrumbId}`, {
+    method: "DELETE",
+    label: "delete breadcrumb",
+  })
 }
 

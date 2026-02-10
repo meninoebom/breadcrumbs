@@ -7,10 +7,10 @@ from app.models import Breadcrumb, Tag, Theme, Visibility
 
 
 def test_create_theme_minimal(client):
-    response = client.post("/themes", json={"title": "My Theme"})
+    response = client.post("/themes", json={"body_md": "A new thought"})
     assert response.status_code == 201
     data = response.json()
-    assert data["title"] == "My Theme"
+    assert data["body_md"] == "A new thought"
     assert data["id"] is not None
     assert data["visibility"] == "draft"
     assert data["tags"] == []
@@ -20,31 +20,26 @@ def test_create_theme_with_tags(client):
     response = client.post(
         "/themes",
         json={
-            "title": "Python Tips",
-            "description_md": "Useful Python patterns",
+            "body_md": "Python is beautiful",
             "tags": [{"name": "python"}, {"name": "tips"}],
         },
     )
     assert response.status_code == 201
     data = response.json()
-    assert data["title"] == "Python Tips"
-    assert data["description_md"] == "Useful Python patterns"
+    assert data["body_md"] == "Python is beautiful"
     tag_names = {t["name"] for t in data["tags"]}
     assert tag_names == {"python", "tips"}
 
 
 def test_create_theme_reuses_existing_tags(client, session):
-    # Create a tag first via a theme
     client.post(
-        "/themes", json={"title": "Theme 1", "tags": [{"name": "python"}]}
+        "/themes", json={"body_md": "First thought", "tags": [{"name": "python"}]}
     )
-    # Create another theme with the same tag
     response = client.post(
-        "/themes", json={"title": "Theme 2", "tags": [{"name": "python"}]}
+        "/themes", json={"body_md": "Second thought", "tags": [{"name": "python"}]}
     )
     assert response.status_code == 201
 
-    # Should be only one "python" tag in the database
     from sqlmodel import select
 
     tags = session.exec(select(Tag).where(Tag.name == "python")).all()
@@ -54,13 +49,13 @@ def test_create_theme_reuses_existing_tags(client, session):
 def test_create_theme_normalizes_tag_names(client):
     response = client.post(
         "/themes",
-        json={"title": "Test", "tags": [{"name": "My Tag"}]},
+        json={"body_md": "Test thought", "tags": [{"name": "My Tag"}]},
     )
     assert response.status_code == 201
     assert response.json()["tags"][0]["name"] == "my-tag"
 
 
-def test_create_theme_missing_title(client):
+def test_create_theme_missing_body(client):
     response = client.post("/themes", json={})
     assert response.status_code == 422
 
@@ -75,8 +70,8 @@ def test_list_themes_empty(client):
 
 
 def test_list_themes(client):
-    client.post("/themes", json={"title": "Theme A"})
-    client.post("/themes", json={"title": "Theme B"})
+    client.post("/themes", json={"body_md": "Thought A"})
+    client.post("/themes", json={"body_md": "Thought B"})
     response = client.get("/themes")
     assert response.status_code == 200
     assert len(response.json()) == 2
@@ -84,45 +79,44 @@ def test_list_themes(client):
 
 def test_list_themes_filter_by_visibility(client):
     client.post(
-        "/themes", json={"title": "Draft", "visibility": "draft"}
+        "/themes", json={"body_md": "A draft thought", "visibility": "draft"}
     )
     client.post(
-        "/themes", json={"title": "Published", "visibility": "published"}
+        "/themes", json={"body_md": "A published thought", "visibility": "published"}
     )
     response = client.get("/themes", params={"visibility": "published"})
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 1
-    assert data[0]["title"] == "Published"
+    assert data[0]["body_md"] == "A published thought"
 
 
 def test_list_themes_filter_by_tag(client):
     client.post(
-        "/themes", json={"title": "Tagged", "tags": [{"name": "python"}]}
+        "/themes", json={"body_md": "Tagged thought", "tags": [{"name": "python"}]}
     )
-    client.post("/themes", json={"title": "Untagged"})
+    client.post("/themes", json={"body_md": "Untagged thought"})
 
     response = client.get("/themes", params={"tag": "python"})
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 1
-    assert data[0]["title"] == "Tagged"
+    assert data[0]["body_md"] == "Tagged thought"
 
 
-def test_list_themes_search_by_title(client):
-    client.post("/themes", json={"title": "Python Tricks"})
-    client.post("/themes", json={"title": "Rust Tips"})
+def test_list_themes_search_by_body(client):
+    client.post("/themes", json={"body_md": "Python is wonderful"})
+    client.post("/themes", json={"body_md": "Rust is fast"})
 
     response = client.get("/themes", params={"q": "python"})
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 1
-    assert data[0]["title"] == "Python Tricks"
+    assert data[0]["body_md"] == "Python is wonderful"
 
 
 def test_list_themes_search_by_breadcrumb_content(client):
-    # Create theme and add breadcrumb
-    r = client.post("/themes", json={"title": "General"})
+    r = client.post("/themes", json={"body_md": "General musings"})
     theme_id = r.json()["id"]
     client.post(
         f"/themes/{theme_id}/breadcrumbs",
@@ -133,12 +127,12 @@ def test_list_themes_search_by_breadcrumb_content(client):
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 1
-    assert data[0]["title"] == "General"
+    assert data[0]["body_md"] == "General musings"
 
 
 def test_list_themes_pagination(client):
     for i in range(5):
-        client.post("/themes", json={"title": f"Theme {i}"})
+        client.post("/themes", json={"body_md": f"Thought {i}"})
 
     response = client.get("/themes", params={"limit": 2, "offset": 0})
     assert response.status_code == 200
@@ -153,12 +147,12 @@ def test_list_themes_pagination(client):
 
 
 def test_get_theme(client):
-    r = client.post("/themes", json={"title": "My Theme"})
+    r = client.post("/themes", json={"body_md": "A retrievable thought"})
     theme_id = r.json()["id"]
 
     response = client.get(f"/themes/{theme_id}")
     assert response.status_code == 200
-    assert response.json()["title"] == "My Theme"
+    assert response.json()["body_md"] == "A retrievable thought"
 
 
 def test_get_theme_not_found(client):
@@ -169,21 +163,21 @@ def test_get_theme_not_found(client):
 # ---------- PUT /themes/{id} ----------
 
 
-def test_update_theme_title(client):
-    r = client.post("/themes", json={"title": "Old Title"})
+def test_update_theme_body(client):
+    r = client.post("/themes", json={"body_md": "Original thought"})
     theme_id = r.json()["id"]
 
     response = client.put(
-        f"/themes/{theme_id}", json={"title": "New Title"}
+        f"/themes/{theme_id}", json={"body_md": "Revised thought"}
     )
     assert response.status_code == 200
-    assert response.json()["title"] == "New Title"
+    assert response.json()["body_md"] == "Revised thought"
 
 
 def test_update_theme_tags(client):
     r = client.post(
         "/themes",
-        json={"title": "Test", "tags": [{"name": "old-tag"}]},
+        json={"body_md": "Test thought", "tags": [{"name": "old-tag"}]},
     )
     theme_id = r.json()["id"]
 
@@ -197,7 +191,7 @@ def test_update_theme_tags(client):
 
 
 def test_update_theme_visibility(client):
-    r = client.post("/themes", json={"title": "Draft Theme"})
+    r = client.post("/themes", json={"body_md": "Draft thought"})
     theme_id = r.json()["id"]
     assert r.json()["visibility"] == "draft"
 
@@ -209,7 +203,7 @@ def test_update_theme_visibility(client):
 
 
 def test_update_theme_not_found(client):
-    response = client.put("/themes/999", json={"title": "Nope"})
+    response = client.put("/themes/999", json={"body_md": "Nope"})
     assert response.status_code == 404
 
 
@@ -217,7 +211,7 @@ def test_update_theme_not_found(client):
 
 
 def test_delete_theme(client):
-    r = client.post("/themes", json={"title": "To Delete"})
+    r = client.post("/themes", json={"body_md": "To be deleted"})
     theme_id = r.json()["id"]
 
     response = client.delete(f"/themes/{theme_id}")
@@ -228,7 +222,7 @@ def test_delete_theme(client):
 
 
 def test_delete_theme_cascades_to_breadcrumbs(client, session):
-    r = client.post("/themes", json={"title": "Parent"})
+    r = client.post("/themes", json={"body_md": "Parent thought"})
     theme_id = r.json()["id"]
     client.post(
         f"/themes/{theme_id}/breadcrumbs",
@@ -247,20 +241,18 @@ def test_delete_theme_leaves_tags_intact(client, session):
     """Deleting a theme removes the association but the tag itself survives."""
     r = client.post(
         "/themes",
-        json={"title": "Tagged Theme", "tags": [{"name": "keeper"}]},
+        json={"body_md": "Tagged thought", "tags": [{"name": "keeper"}]},
     )
     theme_id = r.json()["id"]
 
     client.delete(f"/themes/{theme_id}")
 
-    # Tag still exists in the database
     from sqlmodel import select
     from app.models import Tag
 
     tags = session.exec(select(Tag).where(Tag.name == "keeper")).all()
     assert len(tags) == 1
 
-    # But the count via the API should be 0
     response = client.get("/tags")
     data = response.json()
     keeper = next(t for t in data if t["name"] == "keeper")

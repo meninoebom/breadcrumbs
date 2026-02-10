@@ -9,13 +9,31 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as WriterRouteRouteImport } from './routes/writer/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as WriterIndexRouteImport } from './routes/writer/index'
+import { Route as WriterThemesThemeIdRouteImport } from './routes/writer/themes.$themeId'
 import { Route as TagsTagNameThemesRouteImport } from './routes/tags.$tagName.themes'
 
+const WriterRouteRoute = WriterRouteRouteImport.update({
+  id: '/writer',
+  path: '/writer',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const WriterIndexRoute = WriterIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => WriterRouteRoute,
+} as any)
+const WriterThemesThemeIdRoute = WriterThemesThemeIdRouteImport.update({
+  id: '/themes/$themeId',
+  path: '/themes/$themeId',
+  getParentRoute: () => WriterRouteRoute,
 } as any)
 const TagsTagNameThemesRoute = TagsTagNameThemesRouteImport.update({
   id: '/tags/$tagName/themes',
@@ -25,38 +43,79 @@ const TagsTagNameThemesRoute = TagsTagNameThemesRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/writer': typeof WriterRouteRouteWithChildren
+  '/writer/': typeof WriterIndexRoute
   '/tags/$tagName/themes': typeof TagsTagNameThemesRoute
+  '/writer/themes/$themeId': typeof WriterThemesThemeIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/writer': typeof WriterIndexRoute
   '/tags/$tagName/themes': typeof TagsTagNameThemesRoute
+  '/writer/themes/$themeId': typeof WriterThemesThemeIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/writer': typeof WriterRouteRouteWithChildren
+  '/writer/': typeof WriterIndexRoute
   '/tags/$tagName/themes': typeof TagsTagNameThemesRoute
+  '/writer/themes/$themeId': typeof WriterThemesThemeIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/tags/$tagName/themes'
+  fullPaths:
+    | '/'
+    | '/writer'
+    | '/writer/'
+    | '/tags/$tagName/themes'
+    | '/writer/themes/$themeId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/tags/$tagName/themes'
-  id: '__root__' | '/' | '/tags/$tagName/themes'
+  to: '/' | '/writer' | '/tags/$tagName/themes' | '/writer/themes/$themeId'
+  id:
+    | '__root__'
+    | '/'
+    | '/writer'
+    | '/writer/'
+    | '/tags/$tagName/themes'
+    | '/writer/themes/$themeId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  WriterRouteRoute: typeof WriterRouteRouteWithChildren
   TagsTagNameThemesRoute: typeof TagsTagNameThemesRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/writer': {
+      id: '/writer'
+      path: '/writer'
+      fullPath: '/writer'
+      preLoaderRoute: typeof WriterRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/writer/': {
+      id: '/writer/'
+      path: '/'
+      fullPath: '/writer/'
+      preLoaderRoute: typeof WriterIndexRouteImport
+      parentRoute: typeof WriterRouteRoute
+    }
+    '/writer/themes/$themeId': {
+      id: '/writer/themes/$themeId'
+      path: '/themes/$themeId'
+      fullPath: '/writer/themes/$themeId'
+      preLoaderRoute: typeof WriterThemesThemeIdRouteImport
+      parentRoute: typeof WriterRouteRoute
     }
     '/tags/$tagName/themes': {
       id: '/tags/$tagName/themes'
@@ -68,8 +127,23 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface WriterRouteRouteChildren {
+  WriterIndexRoute: typeof WriterIndexRoute
+  WriterThemesThemeIdRoute: typeof WriterThemesThemeIdRoute
+}
+
+const WriterRouteRouteChildren: WriterRouteRouteChildren = {
+  WriterIndexRoute: WriterIndexRoute,
+  WriterThemesThemeIdRoute: WriterThemesThemeIdRoute,
+}
+
+const WriterRouteRouteWithChildren = WriterRouteRoute._addFileChildren(
+  WriterRouteRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  WriterRouteRoute: WriterRouteRouteWithChildren,
   TagsTagNameThemesRoute: TagsTagNameThemesRoute,
 }
 export const routeTree = rootRouteImport
