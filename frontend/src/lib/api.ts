@@ -1,4 +1,9 @@
-import type { BreadcrumbPublic, ThemePublic, Visibility } from "./types"
+import type {
+  BreadcrumbPublic,
+  TagWithCount,
+  ThemePublic,
+  Visibility,
+} from "./types"
 
 /**
  * Query key conventions (consistent across Issues #10-12):
@@ -57,7 +62,7 @@ function buildQueryString(
 export function fetchThemes(
   params?: ThemeSearchParams,
 ): Promise<ThemePublic[]> {
-  const url = `/api/themes${buildQueryString(params && { ...params })}`
+  const url = `/api/themes${buildQueryString(params as Record<string, string | number | undefined>)}`
   return apiFetch(url, "themes")
 }
 
@@ -66,3 +71,8 @@ export function fetchBreadcrumbs(
 ): Promise<BreadcrumbPublic[]> {
   return apiFetch(`/api/themes/${themeId}/breadcrumbs`, "breadcrumbs")
 }
+
+export function fetchTags(): Promise<TagWithCount[]> {
+  return apiFetch("/api/tags", "tags")
+}
+
