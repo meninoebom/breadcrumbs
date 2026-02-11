@@ -14,6 +14,7 @@ export function AddBreadcrumbForm({ themeId }: AddBreadcrumbFormProps) {
   const [bodyMd, setBodyMd] = useState("")
   const [showSaved, setShowSaved] = useState(false)
   const savedTimer = useRef<ReturnType<typeof setTimeout>>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   // Clean up timer on unmount
   useEffect(() => {
@@ -32,25 +33,32 @@ export function AddBreadcrumbForm({ themeId }: AddBreadcrumbFormProps) {
       setShowSaved(true)
       if (savedTimer.current) clearTimeout(savedTimer.current)
       savedTimer.current = setTimeout(() => setShowSaved(false), 2000)
+      // Refocus for rapid-fire entry
+      textareaRef.current?.focus()
     },
   })
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!bodyMd.trim()) return
+  function submit() {
+    if (!bodyMd.trim() || mutation.isPending) return
     mutation.mutate({ body_md: bodyMd.trim() })
   }
 
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    submit()
+  }
+
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
-      if (bodyMd.trim()) mutation.mutate({ body_md: bodyMd.trim() })
+      submit()
     }
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
       <Textarea
+        ref={textareaRef}
         value={bodyMd}
         onChange={(e) => setBodyMd(e.target.value)}
         onKeyDown={handleKeyDown}
@@ -77,7 +85,7 @@ export function AddBreadcrumbForm({ themeId }: AddBreadcrumbFormProps) {
         )}
       </div>
       <p className="text-xs text-muted-foreground">
-        Press Ctrl+Enter to save
+        Enter to save &middot; Shift+Enter for new line
       </p>
     </form>
   )
