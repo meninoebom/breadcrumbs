@@ -14,7 +14,7 @@ Each entry captures what was built, what was learned, and the product thinking b
 
 | # | Date | Title | Dimensions |
 |---|------|-------|------------|
-| — | — | No entries yet | — |
+| [001](001-prototype-worth-a-thousand-meetings.md) | 2026-02-09 | A Prototype Is Worth a Thousand Meetings | Process & Tooling, Product Strategy |
 
 ---
 
@@ -24,7 +24,7 @@ Tracking breadth across the full product-building journey.
 
 | Dimension | Description | Entries |
 |-----------|-------------|---------|
-| Product Strategy | Why build this? User needs, prioritization | — |
+| Product Strategy | Why build this? User needs, prioritization | 001 |
 | UX Design | Interaction patterns, user psychology, affordances | — |
 | Architecture | System design, data modeling, scaling trade-offs | — |
 | Frontend | React/TanStack patterns, state, performance | — |
@@ -32,5 +32,5 @@ Tracking breadth across the full product-building journey.
 | DevOps | CI/CD, deployment, infrastructure, monitoring | — |
 | Security & Privacy | Auth, data protection, threat modeling | — |
 | Testing & Quality | Test strategy, coverage, confidence levels | — |
-| Process & Tooling | Git workflow, AI-assisted dev, planning methods | — |
+| Process & Tooling | Git workflow, AI-assisted dev, planning methods | 001 |
 | Business & Growth | Distribution, monetization, metrics, market | — |
