@@ -72,6 +72,12 @@ export function BreadcrumbItem({ breadcrumb, themeId }: BreadcrumbItemProps) {
         <Textarea
           value={bodyMd}
           onChange={(e) => setBodyMd(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault()
+              if (bodyMd.trim()) handleSave()
+            }
+          }}
           rows={4}
           autoFocus
         />
