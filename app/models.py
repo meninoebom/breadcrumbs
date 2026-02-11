@@ -106,16 +106,50 @@ class Breadcrumb(BreadcrumbBase, table=True):
         sa_relationship_kwargs={"lazy": "selectin"}
     )
 
+    # Optional parent breadcrumb (self-referential, adjacency list pattern)
+    parent_id: Optional[int] = Field(
+        default=None,
+        foreign_key="breadcrumb.id",
+        ondelete="CASCADE",
+    )
+    parent: Optional["Breadcrumb"] = Relationship(  # type: ignore
+        back_populates="children",
+        sa_relationship_kwargs={
+            "remote_side": "Breadcrumb.id",
+            "lazy": "noload",
+        },
+    )
+    children: List["Breadcrumb"] = Relationship(  # type: ignore
+        back_populates="parent",
+        sa_relationship_kwargs={
+            "cascade": "all, delete-orphan",
+            "passive_deletes": True,
+            "lazy": "noload",
+        },
+    )
+
     def __str__(self) -> str:
         return f"Breadcrumb of id:{self.id}: {self.body_md[:10]}... created at: {self.created_at}"
 
 
+class BreadcrumbCreateInput(SQLModel, table=False):
+    """Request body for POST /themes/{theme_id}/breadcrumbs."""
+    body_md: str = Field(description="Markdown content of the breadcrumb")
+    parent_id: Optional[int] = Field(
+        default=None, description="Optional parent breadcrumb ID"
+    )
+
+
 class BreadcrumbCreate(BreadcrumbBase, table=False):
     theme_id: int = Field(description="Required theme ID for this breadcrumb")
+    parent_id: Optional[int] = Field(
+        default=None, description="Optional parent breadcrumb ID"
+    )
 
 
 class BreadcrumbPublic(BreadcrumbBase, table=False):
     id: int
+    parent_id: Optional[int] = None
     theme: Optional["ThemePublic"] = None  # type: ignore
 
 

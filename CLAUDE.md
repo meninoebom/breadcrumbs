@@ -137,7 +137,8 @@ See `docs/log/README.md` for format and dimensions.
 - `created_at` - Created datetime
 - `updated_at` - Last modified datetime
 - `theme_id` - Foreign key to Theme (required, one-to-many)
-- **Purpose:** Small individual thought atoms that belong to a theme. Visibility is inherited from parent theme.
+- `parent_id` - Optional FK to another Breadcrumb (self-referential, adjacency list pattern)
+- **Purpose:** Small individual thought atoms that belong to a theme. Breadcrumbs can nest: a breadcrumb with `parent_id` is a reply/elaboration on another breadcrumb. `parent_id` is immutable after creation. Visibility is inherited from parent theme.
 
 **Tag:**
 - `id` - Primary key
@@ -151,6 +152,7 @@ See `docs/log/README.md` for format and dimensions.
 **Relationship Design:**
 - **Themes = Thoughts**: Primary content units with body, tags, and visibility
 - **Breadcrumbs = Sub-thoughts**: Individual thought atoms that belong to exactly one theme
+- **Breadcrumb nesting**: Breadcrumbs can have parent-child relationships (adjacency list). Parent must be in the same theme. Cascade delete: deleting a parent deletes all children. Depth soft-limited to 10 at the API level.
 - **Tags = Discovery mechanism**: Applied to themes for filtering and browsing
 - Themes must have body_md and can have 0+ tags
 - Breadcrumbs must belong to exactly one theme
@@ -168,6 +170,7 @@ Use three together for proper cascade delete behavior:
 **When to use `delete-orphan`:**
 - Existential dependency (child can't exist without parent)
 - Example: Breadcrumb → Theme (breadcrumb without theme is invalid)
+- Example: Breadcrumb → Parent Breadcrumb (self-referential, reply without parent is orphaned)
 - Deletes children when removed from collection OR parent deleted
 
 **When to use `save-update, merge` only (many-to-many):**

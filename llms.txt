@@ -58,7 +58,7 @@ Breadcrumbs is a web application for capturing and organizing stream-of-consciou
 
 **Data Models:**
 - **Theme:** Topical container with title, optional description, visibility (draft/published), and tags
-- **Breadcrumb:** Small thought atom (markdown content) that belongs to exactly one theme
+- **Breadcrumb:** Small thought atom (markdown content) that belongs to exactly one theme. Breadcrumbs can nest via optional `parent_id` (self-referential FK). API returns flat list with `parent_id`; clients build tree.
 - **Tag:** Categorization labels with many-to-many relationship to themes
 - **ThemeTag:** Join table for many-to-many relationship between themes and tags
 
@@ -128,7 +128,7 @@ alembic upgrade head
 The primary organizational unit - a topical container with a title and optional description. Themes have visibility states (draft/published) and can be tagged. Themes contain one or more breadcrumbs.
 
 **Breadcrumbs:**
-Small individual thought atoms - timestamped markdown content that belongs to a theme. Unlike traditional blog posts, breadcrumbs are designed as small chunks that flow together within their theme container.
+Small individual thought atoms - timestamped markdown content that belongs to a theme. Unlike traditional blog posts, breadcrumbs are designed as small chunks that flow together within their theme container. Breadcrumbs can have parent-child relationships (optional `parent_id`) for nesting replies/elaborations. The API returns a flat list; tree structure is built client-side.
 
 **Tags:**
 Categorical labels applied to themes (not individual breadcrumbs) for filtering and discovery. A theme can have multiple tags.

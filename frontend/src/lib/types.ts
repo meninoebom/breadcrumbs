@@ -27,6 +27,7 @@ export interface BreadcrumbPublic {
   body_md: string
   created_at: string
   updated_at: string | null
+  parent_id: number | null
 }
 
 export interface TagWithCount extends TagPublic {
@@ -53,7 +54,8 @@ export interface ThemeUpdateInput {
   tags?: { name: string }[]
 }
 
-/** Input for POST/PUT breadcrumbs */
+/** Input for POST breadcrumbs */
 export interface BreadcrumbInput {
   body_md: string
+  parent_id?: number
 }
