@@ -169,3 +169,106 @@ def test_breadcrumb_multiple_themes(session: Session):
 
     assert breadcrumb1.theme.body_md == "Theme 1"
     assert breadcrumb2.theme.body_md == "Theme 2"
+
+
+# ---------- parent-child relationship ----------
+
+
+def test_breadcrumb_no_parent_by_default(session: Session):
+    """New breadcrumbs have parent_id=None by default."""
+    theme = Theme(body_md="Test Theme")
+    session.add(theme)
+    session.commit()
+    session.refresh(theme)
+
+    bc = Breadcrumb(body_md="Top-level thought", theme_id=theme.id)
+    session.add(bc)
+    session.commit()
+    session.refresh(bc)
+
+    assert bc.parent_id is None
+
+
+def test_breadcrumb_with_parent(session: Session):
+    """A breadcrumb can reference another breadcrumb as its parent."""
+    theme = Theme(body_md="Test Theme")
+    session.add(theme)
+    session.commit()
+    session.refresh(theme)
+
+    parent = Breadcrumb(body_md="Parent thought", theme_id=theme.id)
+    session.add(parent)
+    session.commit()
+    session.refresh(parent)
+
+    child = Breadcrumb(body_md="Child thought", theme_id=theme.id, parent_id=parent.id)
+    session.add(child)
+    session.commit()
+    session.refresh(child)
+
+    assert child.parent_id == parent.id
+
+
+def test_breadcrumb_parent_cascade_delete(session: Session):
+    """Deleting a parent breadcrumb cascades to its children."""
+    theme = Theme(body_md="Test Theme")
+    session.add(theme)
+    session.commit()
+    session.refresh(theme)
+
+    parent = Breadcrumb(body_md="Parent", theme_id=theme.id)
+    session.add(parent)
+    session.commit()
+    session.refresh(parent)
+
+    child = Breadcrumb(body_md="Child", theme_id=theme.id, parent_id=parent.id)
+    session.add(child)
+    session.commit()
+    child_id = child.id
+
+    # Delete parent
+    session.delete(parent)
+    session.commit()
+
+    # Child should be gone
+    assert session.get(Breadcrumb, child_id) is None
+
+
+def test_breadcrumb_deep_chain(session: Session):
+    """Breadcrumbs can form chains of arbitrary depth."""
+    theme = Theme(body_md="Test Theme")
+    session.add(theme)
+    session.commit()
+    session.refresh(theme)
+
+    # Create a chain: root -> level1 -> level2 -> level3
+    root = Breadcrumb(body_md="Root", theme_id=theme.id)
+    session.add(root)
+    session.commit()
+    session.refresh(root)
+
+    level1 = Breadcrumb(body_md="Level 1", theme_id=theme.id, parent_id=root.id)
+    session.add(level1)
+    session.commit()
+    session.refresh(level1)
+
+    level2 = Breadcrumb(body_md="Level 2", theme_id=theme.id, parent_id=level1.id)
+    session.add(level2)
+    session.commit()
+    session.refresh(level2)
+
+    level3 = Breadcrumb(body_md="Level 3", theme_id=theme.id, parent_id=level2.id)
+    session.add(level3)
+    session.commit()
+    session.refresh(level3)
+
+    assert level1.parent_id == root.id
+    assert level2.parent_id == level1.id
+    assert level3.parent_id == level2.id
+
+    # Deleting root should cascade to all descendants
+    session.delete(root)
+    session.commit()
+
+    remaining = session.exec(select(Breadcrumb)).all()
+    assert len(remaining) == 0

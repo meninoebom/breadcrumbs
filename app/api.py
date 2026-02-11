@@ -9,6 +9,7 @@ from app.db import get_session
 from app.models import (
     Breadcrumb,
     BreadcrumbBase,
+    BreadcrumbCreateInput,
     BreadcrumbPublic,
     Tag,
     TagCreate,
@@ -172,16 +173,43 @@ def delete_theme(
 )
 def create_breadcrumb(
     theme_id: int,
-    breadcrumb_in: BreadcrumbBase,
+    breadcrumb_in: BreadcrumbCreateInput,
     session: Session = Depends(get_session),
 ):
     theme = session.get(Theme, theme_id)
     if not theme:
         raise HTTPException(status_code=404, detail="Theme not found")
 
+    if breadcrumb_in.parent_id is not None:
+        parent = session.get(Breadcrumb, breadcrumb_in.parent_id)
+        if not parent:
+            raise HTTPException(
+                status_code=400, detail="Parent breadcrumb not found"
+            )
+        if parent.theme_id != theme_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Parent breadcrumb belongs to a different theme",
+            )
+        # Walk up ancestor chain to enforce depth limit.
+        # depth counts edges from root to the new node: root=0, child=1, ...
+        # We reject if the new node would be at depth >= 10.
+        depth = 1
+        ancestor = parent
+        while ancestor.parent_id is not None:
+            depth += 1
+            if depth >= 10:
+                raise HTTPException(
+                    status_code=400, detail="Maximum nesting depth (10) exceeded"
+                )
+            ancestor = session.get(Breadcrumb, ancestor.parent_id)
+            if ancestor is None:
+                break  # orphaned FK — shouldn't happen with CASCADE
+
     breadcrumb = Breadcrumb(
         body_md=breadcrumb_in.body_md,
         theme_id=theme_id,
+        parent_id=breadcrumb_in.parent_id,
     )
     session.add(breadcrumb)
     session.flush()
