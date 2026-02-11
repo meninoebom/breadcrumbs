@@ -134,16 +134,9 @@ class Breadcrumb(BreadcrumbBase, table=True):
 
 class BreadcrumbCreateInput(SQLModel, table=False):
     """Request body for POST /themes/{theme_id}/breadcrumbs."""
-    body_md: str = Field(description="Markdown content of the breadcrumb")
+    body_md: str = Field(min_length=1, description="Markdown content of the breadcrumb")
     parent_id: Optional[int] = Field(
-        default=None, description="Optional parent breadcrumb ID"
-    )
-
-
-class BreadcrumbCreate(BreadcrumbBase, table=False):
-    theme_id: int = Field(description="Required theme ID for this breadcrumb")
-    parent_id: Optional[int] = Field(
-        default=None, description="Optional parent breadcrumb ID"
+        default=None, ge=1, description="Optional parent breadcrumb ID"
     )
 
 

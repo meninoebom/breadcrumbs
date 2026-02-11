@@ -191,7 +191,9 @@ def create_breadcrumb(
                 status_code=400,
                 detail="Parent breadcrumb belongs to a different theme",
             )
-        # Walk up to check depth (soft limit of 10)
+        # Walk up ancestor chain to enforce depth limit.
+        # depth counts edges from root to the new node: root=0, child=1, ...
+        # We reject if the new node would be at depth >= 10.
         depth = 1
         ancestor = parent
         while ancestor.parent_id is not None:
@@ -201,6 +203,8 @@ def create_breadcrumb(
                     status_code=400, detail="Maximum nesting depth (10) exceeded"
                 )
             ancestor = session.get(Breadcrumb, ancestor.parent_id)
+            if ancestor is None:
+                break  # orphaned FK — shouldn't happen with CASCADE
 
     breadcrumb = Breadcrumb(
         body_md=breadcrumb_in.body_md,
