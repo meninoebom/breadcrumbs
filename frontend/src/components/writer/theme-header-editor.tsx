@@ -58,7 +58,8 @@ export function ThemeHeaderEditor({ theme }: ThemeHeaderEditorProps) {
   const updateMutation = useMutation({
     mutationFn: (data: Parameters<typeof updateTheme>[1]) =>
       updateTheme(theme.id, data),
-    onSuccess: () => {
+    onSuccess: (updated) => {
+      queryClient.setQueryData(["themes", theme.id], updated)
       queryClient.invalidateQueries({ queryKey: ["themes"] })
       setEditing(false)
     },
@@ -165,14 +166,15 @@ export function ThemeHeaderEditor({ theme }: ThemeHeaderEditorProps) {
 
       <div className="flex items-center justify-between rounded-lg border p-3">
         <div className="flex items-center gap-3">
+          <Label htmlFor="publish-toggle" className="text-sm cursor-pointer">
+            Publish
+          </Label>
           <Switch
+            id="publish-toggle"
             checked={theme.visibility === "published"}
             onCheckedChange={() => toggleVisibility.mutate()}
             disabled={toggleVisibility.isPending}
           />
-          <span className="text-sm">
-            {theme.visibility === "published" ? "Published" : "Draft"}
-          </span>
           <Badge
             variant={theme.visibility === "published" ? "default" : "secondary"}
           >
