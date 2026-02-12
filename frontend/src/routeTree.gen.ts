@@ -9,12 +9,18 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as AboutRouteImport } from './routes/about'
 import { Route as WriterRouteRouteImport } from './routes/writer/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as WriterIndexRouteImport } from './routes/writer/index'
 import { Route as WriterThemesThemeIdRouteImport } from './routes/writer/themes.$themeId'
 import { Route as TagsTagNameThemesRouteImport } from './routes/tags.$tagName.themes'
 
+const AboutRoute = AboutRouteImport.update({
+  id: '/about',
+  path: '/about',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const WriterRouteRoute = WriterRouteRouteImport.update({
   id: '/writer',
   path: '/writer',
@@ -44,12 +50,14 @@ const TagsTagNameThemesRoute = TagsTagNameThemesRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/writer': typeof WriterRouteRouteWithChildren
+  '/about': typeof AboutRoute
   '/writer/': typeof WriterIndexRoute
   '/tags/$tagName/themes': typeof TagsTagNameThemesRoute
   '/writer/themes/$themeId': typeof WriterThemesThemeIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/writer': typeof WriterIndexRoute
   '/tags/$tagName/themes': typeof TagsTagNameThemesRoute
   '/writer/themes/$themeId': typeof WriterThemesThemeIdRoute
@@ -58,6 +66,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/writer': typeof WriterRouteRouteWithChildren
+  '/about': typeof AboutRoute
   '/writer/': typeof WriterIndexRoute
   '/tags/$tagName/themes': typeof TagsTagNameThemesRoute
   '/writer/themes/$themeId': typeof WriterThemesThemeIdRoute
@@ -67,15 +76,22 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/writer'
+    | '/about'
     | '/writer/'
     | '/tags/$tagName/themes'
     | '/writer/themes/$themeId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/writer' | '/tags/$tagName/themes' | '/writer/themes/$themeId'
+  to:
+    | '/'
+    | '/about'
+    | '/writer'
+    | '/tags/$tagName/themes'
+    | '/writer/themes/$themeId'
   id:
     | '__root__'
     | '/'
     | '/writer'
+    | '/about'
     | '/writer/'
     | '/tags/$tagName/themes'
     | '/writer/themes/$themeId'
@@ -84,11 +100,19 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   WriterRouteRoute: typeof WriterRouteRouteWithChildren
+  AboutRoute: typeof AboutRoute
   TagsTagNameThemesRoute: typeof TagsTagNameThemesRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/about': {
+      id: '/about'
+      path: '/about'
+      fullPath: '/about'
+      preLoaderRoute: typeof AboutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/writer': {
       id: '/writer'
       path: '/writer'
@@ -144,6 +168,7 @@ const WriterRouteRouteWithChildren = WriterRouteRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   WriterRouteRoute: WriterRouteRouteWithChildren,
+  AboutRoute: AboutRoute,
   TagsTagNameThemesRoute: TagsTagNameThemesRoute,
 }
 export const routeTree = rootRouteImport
