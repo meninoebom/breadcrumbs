@@ -1,9 +1,11 @@
+import { useMemo } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"
 import Markdown from "react-markdown"
 import { fetchBreadcrumbs } from "@/lib/api"
 import { useScrollReveal } from "@/hooks/use-scroll-reveal"
-import type { BreadcrumbPublic, ThemePublic } from "@/lib/types"
+import { buildTree, type BreadcrumbNode } from "@/lib/tree"
+import type { ThemePublic } from "@/lib/types"
 import { cn, formatRelativeTime } from "@/lib/utils"
 
 interface ThemeSectionProps {
@@ -20,6 +22,11 @@ export function ThemeSection({ theme }: ThemeSectionProps) {
     queryFn: () => fetchBreadcrumbs(theme.id),
   })
 
+  const tree = useMemo(
+    () => (breadcrumbs ? buildTree(breadcrumbs) : []),
+    [breadcrumbs],
+  )
+
   return (
     <article className="space-y-3">
       <div className="prose prose-sm max-w-none">
@@ -34,10 +41,10 @@ export function ThemeSection({ theme }: ThemeSectionProps) {
         </p>
       )}
 
-      {breadcrumbs && breadcrumbs.length > 0 && (
+      {tree.length > 0 && (
         <div className="pl-4">
-          {breadcrumbs.map((bc, i) => (
-            <BreadcrumbEntry key={bc.id} bc={bc} showSeparator={i > 0} delay={i * 50} />
+          {tree.map((node, i) => (
+            <BreadcrumbTree key={node.id} node={node} depth={0} index={i} />
           ))}
         </div>
       )}
@@ -60,38 +67,44 @@ export function ThemeSection({ theme }: ThemeSectionProps) {
   )
 }
 
-function BreadcrumbEntry({
-  bc,
-  showSeparator,
-  delay,
+const INDENT_PX = [0, 16, 32, 48] as const
+
+function BreadcrumbTree({
+  node,
+  depth,
+  index,
 }: {
-  bc: BreadcrumbPublic
-  showSeparator: boolean
-  delay: number
+  node: BreadcrumbNode
+  depth: number
+  index: number
 }) {
   const { ref, revealed } = useScrollReveal<HTMLDivElement>()
+  const indent = INDENT_PX[Math.min(depth, 3)]
 
   return (
-    <div ref={ref}>
-      {showSeparator && (
+    <div ref={ref} style={indent > 0 ? { marginLeft: indent } : undefined}>
+      {depth === 0 && index > 0 && (
         <div className="flex justify-center py-2">
           <span className="text-muted-foreground/30 text-xs">·</span>
         </div>
       )}
       <div
         className={cn("opacity-0", revealed && "animate-fade-up")}
-        style={revealed ? { animationDelay: `${delay}ms` } : undefined}
+        style={revealed ? { animationDelay: `${index * 50}ms` } : undefined}
       >
         <div className="prose prose-sm max-w-none">
-          <Markdown>{bc.body_md}</Markdown>
+          <Markdown>{node.body_md}</Markdown>
         </div>
         <time
-          dateTime={bc.created_at}
+          dateTime={node.created_at}
           className="block text-[11px] text-muted-foreground/50 mt-1"
         >
-          {formatRelativeTime(bc.created_at)}
+          {formatRelativeTime(node.created_at)}
         </time>
       </div>
+      {node.children.map((child, i) => (
+        <BreadcrumbTree key={child.id} node={child} depth={depth + 1} index={i} />
+      ))}
     </div>
   )
 }
