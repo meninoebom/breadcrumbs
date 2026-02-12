@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router"
 import Markdown from "react-markdown"
 import { fetchBreadcrumbs } from "@/lib/api"
 import type { ThemePublic } from "@/lib/types"
+import { formatRelativeTime } from "@/lib/utils"
 
 interface ThemeSectionProps {
   theme: ThemePublic
@@ -33,10 +34,23 @@ export function ThemeSection({ theme }: ThemeSectionProps) {
       )}
 
       {breadcrumbs && breadcrumbs.length > 0 && (
-        <div className="space-y-2 pl-4">
-          {breadcrumbs.map((bc) => (
-            <div key={bc.id} className="prose prose-sm max-w-none">
-              <Markdown>{bc.body_md}</Markdown>
+        <div className="pl-4">
+          {breadcrumbs.map((bc, i) => (
+            <div key={bc.id}>
+              {i > 0 && (
+                <div className="flex justify-center py-2">
+                  <span className="text-muted-foreground/30 text-xs">·</span>
+                </div>
+              )}
+              <div className="prose prose-sm max-w-none">
+                <Markdown>{bc.body_md}</Markdown>
+              </div>
+              <time
+                dateTime={bc.created_at}
+                className="block text-[11px] text-muted-foreground/50 mt-1"
+              >
+                {formatRelativeTime(bc.created_at)}
+              </time>
             </div>
           ))}
         </div>
