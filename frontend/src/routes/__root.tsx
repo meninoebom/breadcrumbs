@@ -83,13 +83,18 @@ function RootLayout() {
       <div className="min-h-screen bg-background text-foreground">
         <header className="border-b px-6 py-4">
           <div className="mx-auto max-w-3xl flex items-center justify-between">
-            <Link
-              to="/"
-              search={{}}
-              className="text-2xl font-bold no-underline text-foreground"
-            >
-              Breadcrumbs
-            </Link>
+            <div>
+              <Link
+                to="/"
+                search={{}}
+                className="text-2xl font-bold no-underline text-foreground"
+              >
+                Breadcrumbs
+              </Link>
+              <p className="text-sm italic text-muted-foreground">
+                a trail of small thoughts
+              </p>
+            </div>
             <div className="flex items-center gap-3">
               {!isWriterRoute && <SearchBar />}
               <Link
@@ -97,7 +102,7 @@ function RootLayout() {
                 className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground no-underline"
               >
                 <PenLine className="size-4" />
-                Writer
+                Write
               </Link>
             </div>
           </div>
