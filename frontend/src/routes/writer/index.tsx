@@ -22,9 +22,8 @@ function WriterDashboard() {
   if (!themes || themes.length === 0) {
     return (
       <div className="py-12 text-center space-y-2">
-        <p className="text-muted-foreground">No themes yet.</p>
-        <p className="text-sm text-muted-foreground">
-          Create your first theme to get started.
+        <p className="text-muted-foreground italic">
+          Your notebook is empty. Start a new theme to begin leaving breadcrumbs.
         </p>
       </div>
     )
