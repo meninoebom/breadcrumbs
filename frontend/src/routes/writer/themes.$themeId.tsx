@@ -125,7 +125,7 @@ function ThemeEditor() {
 
 function EditorSkeleton() {
   return (
-    <div className="space-y-6 animate-pulse">
+    <div className="max-w-3xl mx-auto space-y-6 animate-pulse">
       <div className="space-y-3">
         <div className="h-7 bg-muted rounded w-64" />
         <div className="h-4 bg-muted rounded w-48" />

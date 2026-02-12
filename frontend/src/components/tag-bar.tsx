@@ -16,10 +16,11 @@ export function TagBar({ activeTag }: TagBarProps) {
 
   if (error) {
     console.error("Failed to load tags:", error.message)
-    return null
+    return <p className="text-xs text-muted-foreground italic">Could not load tags.</p>
   }
 
-  if (!tags || tags.length === 0) return null
+  if (!tags) return null
+  if (tags.length === 0) return <p className="text-xs text-muted-foreground italic">No tags yet.</p>
 
   return (
     <nav className="space-y-1 text-sm">

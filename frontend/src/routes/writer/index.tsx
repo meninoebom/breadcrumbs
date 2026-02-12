@@ -40,7 +40,7 @@ function WriterDashboard() {
 
 function DashboardSkeleton() {
   return (
-    <div className="grid gap-4">
+    <div className="max-w-3xl mx-auto grid gap-4">
       {[1, 2, 3].map((i) => (
         <div key={i} className="rounded-xl border p-6 space-y-3 animate-pulse">
           <div className="flex justify-between">
