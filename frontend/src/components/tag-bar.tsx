@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"
-import { buttonVariants } from "@/components/ui/button"
 import { fetchTags } from "@/lib/api"
 import type { StreamSearch } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -23,37 +22,34 @@ export function TagBar({ activeTag }: TagBarProps) {
   if (!tags || tags.length === 0) return null
 
   return (
-    <div className="flex flex-wrap gap-1.5">
+    <nav className="flex flex-wrap items-center gap-x-1 gap-y-1 text-sm text-muted-foreground">
       <Link
         to="/"
         search={(prev: StreamSearch) => ({ q: prev.q })}
         className={cn(
-          buttonVariants({
-            variant: activeTag ? "secondary" : "default",
-            size: "sm",
-          }),
-          "no-underline",
+          "no-underline hover:text-foreground transition-colors",
+          !activeTag ? "text-foreground font-medium underline underline-offset-4" : "",
         )}
       >
-        All
+        all
       </Link>
       {tags.map((tag) => (
-        <Link
-          key={tag.id}
-          to="/"
-          search={(prev: StreamSearch) => ({ q: prev.q, tag: tag.name })}
-          className={cn(
-            buttonVariants({
-              variant: activeTag === tag.name ? "default" : "secondary",
-              size: "sm",
-            }),
-            "no-underline",
-          )}
-        >
-          {tag.name}
-          <span className="ml-1 text-xs opacity-60">({tag.theme_count})</span>
-        </Link>
+        <span key={tag.id} className="contents">
+          <span className="text-muted-foreground/30 select-none">&middot;</span>
+          <Link
+            to="/"
+            search={(prev: StreamSearch) => ({ q: prev.q, tag: tag.name })}
+            className={cn(
+              "no-underline hover:text-foreground transition-colors",
+              activeTag === tag.name
+                ? "text-foreground font-medium underline underline-offset-4"
+                : "",
+            )}
+          >
+            {tag.name}
+          </Link>
+        </span>
       ))}
-    </div>
+    </nav>
   )
 }

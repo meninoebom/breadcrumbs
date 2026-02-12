@@ -57,15 +57,15 @@ export function ThemeSection({ theme }: ThemeSectionProps) {
       )}
 
       {theme.tags.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 pt-1">
+        <div className="flex flex-wrap gap-x-2 gap-y-1 pt-1">
           {theme.tags.map((tag) => (
             <Link
               key={tag.id}
               to="/"
               search={{ tag: tag.name }}
-              className="text-xs text-muted-foreground hover:text-foreground no-underline"
+              className="text-xs text-muted-foreground/70 hover:text-foreground no-underline transition-colors"
             >
-              {tag.name}
+              #{tag.name}
             </Link>
           ))}
         </div>
