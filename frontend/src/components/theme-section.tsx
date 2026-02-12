@@ -2,8 +2,9 @@ import { useQuery } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"
 import Markdown from "react-markdown"
 import { fetchBreadcrumbs } from "@/lib/api"
-import type { ThemePublic } from "@/lib/types"
-import { formatRelativeTime } from "@/lib/utils"
+import { useScrollReveal } from "@/hooks/use-scroll-reveal"
+import type { BreadcrumbPublic, ThemePublic } from "@/lib/types"
+import { cn, formatRelativeTime } from "@/lib/utils"
 
 interface ThemeSectionProps {
   theme: ThemePublic
@@ -36,22 +37,7 @@ export function ThemeSection({ theme }: ThemeSectionProps) {
       {breadcrumbs && breadcrumbs.length > 0 && (
         <div className="pl-4">
           {breadcrumbs.map((bc, i) => (
-            <div key={bc.id}>
-              {i > 0 && (
-                <div className="flex justify-center py-2">
-                  <span className="text-muted-foreground/30 text-xs">·</span>
-                </div>
-              )}
-              <div className="prose prose-sm max-w-none">
-                <Markdown>{bc.body_md}</Markdown>
-              </div>
-              <time
-                dateTime={bc.created_at}
-                className="block text-[11px] text-muted-foreground/50 mt-1"
-              >
-                {formatRelativeTime(bc.created_at)}
-              </time>
-            </div>
+            <BreadcrumbEntry key={bc.id} bc={bc} showSeparator={i > 0} delay={i * 50} />
           ))}
         </div>
       )}
@@ -71,6 +57,42 @@ export function ThemeSection({ theme }: ThemeSectionProps) {
         </div>
       )}
     </article>
+  )
+}
+
+function BreadcrumbEntry({
+  bc,
+  showSeparator,
+  delay,
+}: {
+  bc: BreadcrumbPublic
+  showSeparator: boolean
+  delay: number
+}) {
+  const { ref, revealed } = useScrollReveal<HTMLDivElement>()
+
+  return (
+    <div ref={ref}>
+      {showSeparator && (
+        <div className="flex justify-center py-2">
+          <span className="text-muted-foreground/30 text-xs">·</span>
+        </div>
+      )}
+      <div
+        className={cn("opacity-0", revealed && "animate-fade-up")}
+        style={revealed ? { animationDelay: `${delay}ms` } : undefined}
+      >
+        <div className="prose prose-sm max-w-none">
+          <Markdown>{bc.body_md}</Markdown>
+        </div>
+        <time
+          dateTime={bc.created_at}
+          className="block text-[11px] text-muted-foreground/50 mt-1"
+        >
+          {formatRelativeTime(bc.created_at)}
+        </time>
+      </div>
+    </div>
   )
 }
 
