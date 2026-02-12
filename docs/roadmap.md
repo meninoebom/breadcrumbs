@@ -34,6 +34,8 @@ pagination. 70 total tests.
 
 ## Post-MVP
 
+- Date nav sidebar — sticky left-column date navigator that highlights the current date section as the user scrolls, with forward/backward time navigation
+- Tag search — search/filter within the tag sidebar as the list grows
 - Real authentication (OAuth/JWT)
 - Markdown preview in editor
 - Tag autocomplete

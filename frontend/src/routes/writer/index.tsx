@@ -21,7 +21,7 @@ function WriterDashboard() {
 
   if (!themes || themes.length === 0) {
     return (
-      <div className="py-12 text-center space-y-2">
+      <div className="max-w-3xl mx-auto py-12 text-center space-y-2">
         <p className="text-muted-foreground italic">
           Your notebook is empty. Start a new theme to begin leaving breadcrumbs.
         </p>
@@ -30,7 +30,7 @@ function WriterDashboard() {
   }
 
   return (
-    <div className="grid gap-4">
+    <div className="max-w-3xl mx-auto grid gap-4">
       {themes.map((theme) => (
         <ThemeCard key={theme.id} theme={theme} />
       ))}
@@ -40,7 +40,7 @@ function WriterDashboard() {
 
 function DashboardSkeleton() {
   return (
-    <div className="grid gap-4">
+    <div className="max-w-3xl mx-auto grid gap-4">
       {[1, 2, 3].map((i) => (
         <div key={i} className="rounded-xl border p-6 space-y-3 animate-pulse">
           <div className="flex justify-between">

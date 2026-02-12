@@ -42,42 +42,49 @@ function ReaderStream() {
   const dateGroups = themes ? groupByDate(themes) : []
 
   return (
-    <div className="space-y-6">
-      <TagBar activeTag={tag} />
+    <div className="flex gap-10">
+      <aside className="hidden md:block w-40 shrink-0 sticky top-8 self-start">
+        <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground/60 mb-3">
+          Tags
+        </h3>
+        <TagBar activeTag={tag} />
+      </aside>
 
-      {(tag || q) && <ActiveFilters tag={tag} q={q} />}
+      <div className="flex-1 min-w-0 space-y-6">
+        {(tag || q) && <ActiveFilters tag={tag} q={q} />}
 
-      {isLoading && <StreamSkeleton />}
+        {isLoading && <StreamSkeleton />}
 
-      {error && <p className="text-destructive">Error: {error.message}</p>}
+        {error && <p className="text-destructive">Error: {error.message}</p>}
 
-      {themes && themes.length === 0 && (
-        <div className="py-12 text-center space-y-2">
-          <p className="text-muted-foreground italic">
-            {tag || q
-              ? "No breadcrumbs along this path."
-              : "The trail is quiet. No breadcrumbs have been dropped here yet."}
-          </p>
-        </div>
-      )}
+        {themes && themes.length === 0 && (
+          <div className="py-12 text-center space-y-2">
+            <p className="text-muted-foreground italic">
+              {tag || q
+                ? "No breadcrumbs along this path."
+                : "The trail is quiet. No breadcrumbs have been dropped here yet."}
+            </p>
+          </div>
+        )}
 
-      {dateGroups.length > 0 && (
-        <div className="space-y-10">
-          {dateGroups.map(([key, groupThemes]) => (
-            <section key={key}>
-              <h2 className="text-xl font-semibold tracking-tight mb-6">
-                {formatDateHeading(groupThemes[0].created_at)}
-              </h2>
+        {dateGroups.length > 0 && (
+          <div className="space-y-10">
+            {dateGroups.map(([key, groupThemes]) => (
+              <section key={key}>
+                <h2 className="text-xl font-semibold tracking-tight mb-6">
+                  {formatDateHeading(groupThemes[0].created_at)}
+                </h2>
 
-              <div className="space-y-8 pl-4 border-l-2 border-border">
-                {groupThemes.map((theme) => (
-                  <ThemeSection key={theme.id} theme={theme} />
-                ))}
-              </div>
-            </section>
-          ))}
-        </div>
-      )}
+                <div className="space-y-8 pl-4 border-l-2 border-border">
+                  {groupThemes.map((theme) => (
+                    <ThemeSection key={theme.id} theme={theme} />
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

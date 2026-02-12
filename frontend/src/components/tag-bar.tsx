@@ -16,39 +16,40 @@ export function TagBar({ activeTag }: TagBarProps) {
 
   if (error) {
     console.error("Failed to load tags:", error.message)
-    return null
+    return <p className="text-xs text-muted-foreground italic">Could not load tags.</p>
   }
 
-  if (!tags || tags.length === 0) return null
+  if (!tags) return null
+  if (tags.length === 0) return <p className="text-xs text-muted-foreground italic">No tags yet.</p>
 
   return (
-    <nav className="flex flex-wrap items-center gap-x-1 gap-y-1 text-sm text-muted-foreground">
+    <nav className="space-y-1 text-sm">
       <Link
         to="/"
         search={(prev: StreamSearch) => ({ q: prev.q })}
         className={cn(
-          "no-underline hover:text-foreground transition-colors",
-          !activeTag ? "text-foreground font-medium underline underline-offset-4" : "",
+          "block no-underline hover:text-foreground transition-colors",
+          !activeTag
+            ? "text-foreground font-medium"
+            : "text-muted-foreground",
         )}
       >
         all
       </Link>
       {tags.map((tag) => (
-        <span key={tag.id} className="contents">
-          <span className="text-muted-foreground/30 select-none">&middot;</span>
-          <Link
-            to="/"
-            search={(prev: StreamSearch) => ({ q: prev.q, tag: tag.name })}
-            className={cn(
-              "no-underline hover:text-foreground transition-colors",
-              activeTag === tag.name
-                ? "text-foreground font-medium underline underline-offset-4"
-                : "",
-            )}
-          >
-            {tag.name}
-          </Link>
-        </span>
+        <Link
+          key={tag.id}
+          to="/"
+          search={(prev: StreamSearch) => ({ q: prev.q, tag: tag.name })}
+          className={cn(
+            "block no-underline hover:text-foreground transition-colors",
+            activeTag === tag.name
+              ? "text-foreground font-medium"
+              : "text-muted-foreground",
+          )}
+        >
+          {tag.name}
+        </Link>
       ))}
     </nav>
   )

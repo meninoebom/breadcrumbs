@@ -15,8 +15,34 @@ export const Route = createFileRoute("/writer/themes/$themeId")({
 function ThemeEditor() {
   const { themeId } = Route.useParams()
   const id = Number(themeId)
+  const isValidId = !Number.isNaN(id) && id > 0
 
-  if (Number.isNaN(id) || id <= 0) {
+  const {
+    data: theme,
+    isLoading: themeLoading,
+    error: themeError,
+  } = useQuery({
+    queryKey: ["themes", id],
+    queryFn: () => fetchTheme(id),
+    enabled: isValidId,
+  })
+
+  const {
+    data: breadcrumbs,
+    isLoading: breadcrumbsLoading,
+    error: breadcrumbsError,
+  } = useQuery({
+    queryKey: ["themes", id, "breadcrumbs"],
+    queryFn: () => fetchBreadcrumbs(id),
+    enabled: isValidId && !!theme,
+  })
+
+  const tree = useMemo(
+    () => (breadcrumbs ? buildTree(breadcrumbs) : []),
+    [breadcrumbs],
+  )
+
+  if (!isValidId) {
     return (
       <div className="py-12 text-center space-y-4">
         <p className="text-muted-foreground">Invalid theme ID.</p>
@@ -29,25 +55,6 @@ function ThemeEditor() {
       </div>
     )
   }
-
-  const {
-    data: theme,
-    isLoading: themeLoading,
-    error: themeError,
-  } = useQuery({
-    queryKey: ["themes", id],
-    queryFn: () => fetchTheme(id),
-  })
-
-  const {
-    data: breadcrumbs,
-    isLoading: breadcrumbsLoading,
-    error: breadcrumbsError,
-  } = useQuery({
-    queryKey: ["themes", id, "breadcrumbs"],
-    queryFn: () => fetchBreadcrumbs(id),
-    enabled: !!theme,
-  })
 
   if (themeLoading) return <EditorSkeleton />
 
@@ -68,15 +75,10 @@ function ThemeEditor() {
     )
   }
 
-  const tree = useMemo(
-    () => (breadcrumbs ? buildTree(breadcrumbs) : []),
-    [breadcrumbs],
-  )
-
   if (!theme) return null
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-3xl mx-auto space-y-6">
       <ThemeHeaderEditor theme={theme} />
 
       <Separator />
@@ -123,7 +125,7 @@ function ThemeEditor() {
 
 function EditorSkeleton() {
   return (
-    <div className="space-y-6 animate-pulse">
+    <div className="max-w-3xl mx-auto space-y-6 animate-pulse">
       <div className="space-y-3">
         <div className="h-7 bg-muted rounded w-64" />
         <div className="h-4 bg-muted rounded w-48" />

@@ -6,7 +6,7 @@ import { fetchBreadcrumbs } from "@/lib/api"
 import { useScrollReveal } from "@/hooks/use-scroll-reveal"
 import { buildTree, type BreadcrumbNode } from "@/lib/tree"
 import type { ThemePublic } from "@/lib/types"
-import { cn, formatRelativeTime } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 
 interface ThemeSectionProps {
   theme: ThemePublic
@@ -84,7 +84,7 @@ function BreadcrumbTree({
   return (
     <div ref={ref} style={indent > 0 ? { marginLeft: indent } : undefined}>
       {depth === 0 && index > 0 && (
-        <div className="flex justify-center py-2">
+        <div className="flex justify-center py-0.5">
           <span className="text-muted-foreground/30 text-xs">·</span>
         </div>
       )}
@@ -95,12 +95,6 @@ function BreadcrumbTree({
         <div className="prose prose-sm max-w-none">
           <Markdown>{node.body_md}</Markdown>
         </div>
-        <time
-          dateTime={node.created_at}
-          className="block text-[11px] text-muted-foreground/50 mt-1"
-        >
-          {formatRelativeTime(node.created_at)}
-        </time>
       </div>
       {node.children.map((child, i) => (
         <BreadcrumbTree key={child.id} node={child} depth={depth + 1} index={i} />
