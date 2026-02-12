@@ -28,8 +28,22 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
 
 load_dotenv()
 
+
+def normalize_database_url(url: str) -> str:
+    """Convert postgresql:// to postgresql+psycopg:// for psycopg3 compatibility.
+
+    Railway provides postgresql:// URLs, but SQLAlchemy needs the +psycopg
+    driver suffix to use psycopg3.
+    """
+    if url.startswith("postgresql://"):
+        return url.replace("postgresql://", "postgresql+psycopg://", 1)
+    return url
+
+
 # Database URL from environment
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///breadcrumbs.sqlite")
+DATABASE_URL = normalize_database_url(
+    os.getenv("DATABASE_URL", "sqlite:///breadcrumbs.sqlite")
+)
 
 # Echo SQL in development
 ECHO_SQL = os.getenv("ENVIRONMENT", "development") == "development"
