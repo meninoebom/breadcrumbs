@@ -1,6 +1,8 @@
+import { useMemo } from "react"
 import { createFileRoute, Link } from "@tanstack/react-router"
 import { useQuery } from "@tanstack/react-query"
 import { fetchTheme, fetchBreadcrumbs } from "@/lib/api"
+import { buildTree } from "@/lib/tree"
 import { ThemeHeaderEditor } from "@/components/writer/theme-header-editor"
 import { BreadcrumbItem } from "@/components/writer/breadcrumb-item"
 import { AddBreadcrumbForm } from "@/components/writer/add-breadcrumb-form"
@@ -66,6 +68,11 @@ function ThemeEditor() {
     )
   }
 
+  const tree = useMemo(
+    () => (breadcrumbs ? buildTree(breadcrumbs) : []),
+    [breadcrumbs],
+  )
+
   if (!theme) return null
 
   return (
@@ -98,10 +105,10 @@ function ThemeEditor() {
           </p>
         )}
 
-        {breadcrumbs && breadcrumbs.length > 0 && (
+        {tree.length > 0 && (
           <div className="space-y-3">
-            {breadcrumbs.map((bc) => (
-              <BreadcrumbItem key={bc.id} breadcrumb={bc} themeId={id} />
+            {tree.map((node) => (
+              <BreadcrumbItem key={node.id} node={node} themeId={id} />
             ))}
           </div>
         )}

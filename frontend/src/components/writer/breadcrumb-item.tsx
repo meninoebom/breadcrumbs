@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { Pencil, Trash2, Check, X } from "lucide-react"
+import { Pencil, Trash2, Check, X, MessageSquare } from "lucide-react"
 import Markdown from "react-markdown"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -16,29 +16,34 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { updateBreadcrumb, deleteBreadcrumb } from "@/lib/api"
-import type { BreadcrumbPublic } from "@/lib/types"
+import { AddBreadcrumbForm } from "./add-breadcrumb-form"
+import type { BreadcrumbNode } from "@/lib/tree"
 import { formatDate } from "@/lib/utils"
 
+const INDENT_PX = [0, 16, 32, 48] as const
+
 interface BreadcrumbItemProps {
-  breadcrumb: BreadcrumbPublic
+  node: BreadcrumbNode
   themeId: number
+  depth?: number
 }
 
-export function BreadcrumbItem({ breadcrumb, themeId }: BreadcrumbItemProps) {
+export function BreadcrumbItem({ node, themeId, depth = 0 }: BreadcrumbItemProps) {
   const queryClient = useQueryClient()
   const [editing, setEditing] = useState(false)
-  const [bodyMd, setBodyMd] = useState(breadcrumb.body_md)
+  const [replying, setReplying] = useState(false)
+  const [bodyMd, setBodyMd] = useState(node.body_md)
 
   // Sync local state when prop changes (e.g. after mutation + refetch)
   useEffect(() => {
     if (!editing) {
-      setBodyMd(breadcrumb.body_md)
+      setBodyMd(node.body_md)
     }
-  }, [breadcrumb.body_md, editing])
+  }, [node.body_md, editing])
 
   const editMutation = useMutation({
     mutationFn: (data: { body_md: string }) =>
-      updateBreadcrumb(themeId, breadcrumb.id, data),
+      updateBreadcrumb(themeId, node.id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ["themes", themeId, "breadcrumbs"],
@@ -48,7 +53,7 @@ export function BreadcrumbItem({ breadcrumb, themeId }: BreadcrumbItemProps) {
   })
 
   const removeMutation = useMutation({
-    mutationFn: () => deleteBreadcrumb(themeId, breadcrumb.id),
+    mutationFn: () => deleteBreadcrumb(themeId, node.id),
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ["themes", themeId, "breadcrumbs"],
@@ -62,13 +67,16 @@ export function BreadcrumbItem({ breadcrumb, themeId }: BreadcrumbItemProps) {
   }
 
   function handleCancel() {
-    setBodyMd(breadcrumb.body_md)
+    setBodyMd(node.body_md)
     setEditing(false)
   }
 
+  const indent = INDENT_PX[Math.min(depth, 3)]
+  const hasChildren = node.children.length > 0
+
   if (editing) {
     return (
-      <div className="rounded-lg border p-3 space-y-3">
+      <div className="rounded-lg border p-3 space-y-3" style={indent > 0 ? { marginLeft: indent } : undefined}>
         <Textarea
           value={bodyMd}
           onChange={(e) => setBodyMd(e.target.value)}
@@ -105,56 +113,81 @@ export function BreadcrumbItem({ breadcrumb, themeId }: BreadcrumbItemProps) {
   }
 
   return (
-    <div className="group rounded-lg border p-3 space-y-1">
-      <div className="flex items-start justify-between gap-2">
-        <div className="prose prose-sm max-w-none flex-1">
-          <Markdown>{breadcrumb.body_md}</Markdown>
+    <>
+      <div className="group rounded-lg border p-3 space-y-1" style={indent > 0 ? { marginLeft: indent } : undefined}>
+        <div className="flex items-start justify-between gap-2">
+          <div className="prose prose-sm max-w-none flex-1">
+            <Markdown>{node.body_md}</Markdown>
+          </div>
+          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+            <Button
+              size="icon-xs"
+              variant="ghost"
+              onClick={() => setReplying(!replying)}
+              title="Reply"
+            >
+              <MessageSquare className="size-3.5" />
+            </Button>
+            <Button
+              size="icon-xs"
+              variant="ghost"
+              onClick={() => setEditing(true)}
+            >
+              <Pencil className="size-3.5" />
+            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  size="icon-xs"
+                  variant="ghost"
+                  disabled={removeMutation.isPending}
+                >
+                  <Trash2 className="size-3.5" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete breadcrumb?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {hasChildren
+                      ? "This will delete this breadcrumb and all its replies. This action cannot be undone."
+                      : "This will permanently delete this breadcrumb. This action cannot be undone."}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => removeMutation.mutate()}>
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
         </div>
-        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-          <Button
-            size="icon-xs"
-            variant="ghost"
-            onClick={() => setEditing(true)}
-          >
-            <Pencil className="size-3.5" />
-          </Button>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button
-                size="icon-xs"
-                variant="ghost"
-                disabled={removeMutation.isPending}
-              >
-                <Trash2 className="size-3.5" />
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete breadcrumb?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will permanently delete this breadcrumb. This action
-                  cannot be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={() => removeMutation.mutate()}>
-                  Delete
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
+        <time className="block text-xs text-muted-foreground">
+          {formatDate(node.created_at)}
+          {node.updated_at && <> &middot; edited</>}
+        </time>
+        {removeMutation.error && (
+          <p className="text-sm text-destructive">
+            {removeMutation.error.message}
+          </p>
+        )}
       </div>
-      <time className="block text-xs text-muted-foreground">
-        {formatDate(breadcrumb.created_at)}
-        {breadcrumb.updated_at && <> &middot; edited</>}
-      </time>
-      {removeMutation.error && (
-        <p className="text-sm text-destructive">
-          {removeMutation.error.message}
-        </p>
+
+      {replying && (
+        <div style={{ marginLeft: INDENT_PX[Math.min(depth + 1, 3)] }} className="mt-2">
+          <AddBreadcrumbForm
+            themeId={themeId}
+            parentId={node.id}
+            onCancel={() => setReplying(false)}
+          />
+        </div>
       )}
-    </div>
+
+      {node.children.map((child) => (
+        <BreadcrumbItem key={child.id} node={child} themeId={themeId} depth={depth + 1} />
+      ))}
+    </>
   )
 }

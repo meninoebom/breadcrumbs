@@ -1,15 +1,17 @@
 import { useEffect, useRef, useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { Check, Plus } from "lucide-react"
+import { Check, Plus, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { createBreadcrumb } from "@/lib/api"
 
 interface AddBreadcrumbFormProps {
   themeId: number
+  parentId?: number
+  onCancel?: () => void
 }
 
-export function AddBreadcrumbForm({ themeId }: AddBreadcrumbFormProps) {
+export function AddBreadcrumbForm({ themeId, parentId, onCancel }: AddBreadcrumbFormProps) {
   const queryClient = useQueryClient()
   const [bodyMd, setBodyMd] = useState("")
   const [showSaved, setShowSaved] = useState(false)
@@ -24,7 +26,8 @@ export function AddBreadcrumbForm({ themeId }: AddBreadcrumbFormProps) {
   }, [])
 
   const mutation = useMutation({
-    mutationFn: (data: { body_md: string }) => createBreadcrumb(themeId, data),
+    mutationFn: (data: { body_md: string; parent_id?: number }) =>
+      createBreadcrumb(themeId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ["themes", themeId, "breadcrumbs"],
@@ -33,14 +36,20 @@ export function AddBreadcrumbForm({ themeId }: AddBreadcrumbFormProps) {
       setShowSaved(true)
       if (savedTimer.current) clearTimeout(savedTimer.current)
       savedTimer.current = setTimeout(() => setShowSaved(false), 2000)
-      // Refocus for rapid-fire entry
-      textareaRef.current?.focus()
+      if (parentId) {
+        onCancel?.()
+      } else {
+        textareaRef.current?.focus()
+      }
     },
   })
 
   function submit() {
     if (!bodyMd.trim() || mutation.isPending) return
-    mutation.mutate({ body_md: bodyMd.trim() })
+    mutation.mutate({
+      body_md: bodyMd.trim(),
+      ...(parentId ? { parent_id: parentId } : {}),
+    })
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -53,6 +62,9 @@ export function AddBreadcrumbForm({ themeId }: AddBreadcrumbFormProps) {
       e.preventDefault()
       submit()
     }
+    if (e.key === "Escape" && onCancel) {
+      onCancel()
+    }
   }
 
   return (
@@ -62,8 +74,9 @@ export function AddBreadcrumbForm({ themeId }: AddBreadcrumbFormProps) {
         value={bodyMd}
         onChange={(e) => setBodyMd(e.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder="Add a breadcrumb... (supports markdown)"
-        rows={3}
+        placeholder={parentId ? "Reply..." : "Add a breadcrumb... (supports markdown)"}
+        rows={parentId ? 2 : 3}
+        autoFocus={!!parentId}
       />
       {mutation.error && (
         <p className="text-sm text-destructive">{mutation.error.message}</p>
@@ -75,8 +88,14 @@ export function AddBreadcrumbForm({ themeId }: AddBreadcrumbFormProps) {
           disabled={mutation.isPending || !bodyMd.trim()}
         >
           <Plus className="size-4" />
-          {mutation.isPending ? "Adding..." : "Add Breadcrumb"}
+          {mutation.isPending ? "Adding..." : parentId ? "Reply" : "Add Breadcrumb"}
         </Button>
+        {onCancel && (
+          <Button type="button" size="sm" variant="outline" onClick={onCancel}>
+            <X className="size-4" />
+            Cancel
+          </Button>
+        )}
         {showSaved && (
           <span className="text-sm text-muted-foreground flex items-center gap-1 animate-in fade-in">
             <Check className="size-3.5" />
@@ -84,9 +103,11 @@ export function AddBreadcrumbForm({ themeId }: AddBreadcrumbFormProps) {
           </span>
         )}
       </div>
-      <p className="text-xs text-muted-foreground">
-        Enter to save &middot; Shift+Enter for new line
-      </p>
+      {!parentId && (
+        <p className="text-xs text-muted-foreground">
+          Enter to save &middot; Shift+Enter for new line
+        </p>
+      )}
     </form>
   )
 }
