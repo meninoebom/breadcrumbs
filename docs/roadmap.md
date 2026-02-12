@@ -34,11 +34,21 @@ pagination. 70 total tests.
 
 ## Post-MVP
 
+### UI Polish
 - Date nav sidebar — sticky left-column date navigator that highlights the current date section as the user scrolls, with forward/backward time navigation
 - Tag search — search/filter within the tag sidebar as the list grows
-- Real authentication (OAuth/JWT)
 - Markdown preview in editor
 - Tag autocomplete
 - Image upload
+
+### Infrastructure
+- Real authentication (OAuth/JWT)
 - RSS feed
 - Social sharing
+
+### Input Surfaces
+- Voice input — add breadcrumbs by talking to phone via Larry (agent-mediated voice capture)
+- Project log funneling — post-PR learning journal entries auto-flow into breadcrumbs as new themes/crumbs
+
+### Output Surfaces
+- Chat bot on About page — trained on breadcrumbs, represents how I think; visitors can ask it questions about me, my work, or whether a role is a good fit
