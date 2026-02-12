@@ -1,8 +1,11 @@
+import logging
 import re
 from typing import Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Query
-from sqlalchemy.exc import IntegrityError
+from fastapi.responses import JSONResponse
+from sqlalchemy.exc import DataError, IntegrityError, OperationalError
+from starlette.requests import Request
 from sqlmodel import Session, col, func, or_, select
 
 from app.db import get_session
@@ -23,6 +26,27 @@ from app.models import (
 )
 
 app = FastAPI(title="Breadcrumbs API")
+
+logger = logging.getLogger(__name__)
+
+
+@app.exception_handler(IntegrityError)
+def integrity_error_handler(request: Request, exc: IntegrityError):
+    logger.error("IntegrityError: %s", exc)
+    return JSONResponse(status_code=409, content={"detail": "Conflict: a database constraint was violated"})
+
+
+@app.exception_handler(OperationalError)
+def operational_error_handler(request: Request, exc: OperationalError):
+    logger.error("OperationalError: %s", exc)
+    return JSONResponse(status_code=503, content={"detail": "Service temporarily unavailable"})
+
+
+@app.exception_handler(DataError)
+def data_error_handler(request: Request, exc: DataError):
+    logger.error("DataError: %s", exc)
+    return JSONResponse(status_code=400, content={"detail": "Invalid data submitted"})
+
 
 THEME_UPDATABLE_FIELDS = {"body_md", "visibility"}
 
