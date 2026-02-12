@@ -25,11 +25,11 @@ pagination. 70 total tests.
 | [#12](https://github.com/meninoebom/breadcrumbs/issues/12) | Writer dashboard + theme editor | #9 |
 
 ### Phase 4: Polish & Deploy
-**Status:** Not started
+**Status:** Complete
 
 - Global exception handlers ([#8](https://github.com/meninoebom/breadcrumbs/issues/8))
-- CI/CD pipeline
-- Docker setup
+- CI/CD pipeline (GitHub Actions — backend + frontend in parallel)
+- Railway deployment (single service, auto-deploy from main)
 - Loading states, error handling, responsive design
 
 ## Post-MVP
@@ -50,5 +50,7 @@ pagination. 70 total tests.
 - Voice input — add breadcrumbs by talking to phone via Larry (agent-mediated voice capture)
 - Project log funneling — post-PR learning journal entries auto-flow into breadcrumbs as new themes/crumbs
 
-### Output Surfaces
+### Agent Integration
+- Agent-native API — all content is markdown-backed, making the REST API naturally readable/writable by LLMs without serialization layers
 - Chat bot on About page — trained on breadcrumbs, represents how I think; visitors can ask it questions about me, my work, or whether a role is a good fit
+- Agent authoring — agents can create themes and breadcrumbs via the API (voice input, project log funneling, and chat bot all reduce to "agent POSTs markdown")
