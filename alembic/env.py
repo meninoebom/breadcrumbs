@@ -9,10 +9,13 @@ from alembic import context
 
 # Import the models explicitly to ensure they are registered with SQLModel
 from app.models import * # noqa: F403
+from app.db import normalize_database_url
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///snipster.sqlite")
+DATABASE_URL = normalize_database_url(
+    os.getenv("DATABASE_URL", "sqlite:///breadcrumbs.sqlite")
+)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

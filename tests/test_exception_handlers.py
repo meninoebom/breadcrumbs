@@ -11,7 +11,7 @@ def test_integrity_error_returns_409(client):
         "app.api.Session.get",
         side_effect=IntegrityError("mock", {}, Exception("unique violation")),
     ):
-        r = client.get("/themes/1")
+        r = client.get("/api/themes/1")
     assert r.status_code == 409
     assert r.json()["detail"] == "Conflict: a database constraint was violated"
     assert "SQL" not in r.json()["detail"]
@@ -23,7 +23,7 @@ def test_operational_error_returns_503(client):
         "app.api.Session.get",
         side_effect=OperationalError("mock", {}, Exception("connection refused")),
     ):
-        r = client.get("/themes/1")
+        r = client.get("/api/themes/1")
     assert r.status_code == 503
     assert r.json()["detail"] == "Service temporarily unavailable"
 
@@ -34,6 +34,6 @@ def test_data_error_returns_400(client):
         "app.api.Session.get",
         side_effect=DataError("mock", {}, Exception("invalid input")),
     ):
-        r = client.get("/themes/1")
+        r = client.get("/api/themes/1")
     assert r.status_code == 400
     assert r.json()["detail"] == "Invalid data submitted"

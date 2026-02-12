@@ -1,9 +1,13 @@
 import logging
+import os
 import re
+from pathlib import Path
 from typing import Optional
 
-from fastapi import Depends, FastAPI, HTTPException, Query
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.exc import DataError, IntegrityError, OperationalError
 from starlette.requests import Request
 from sqlmodel import Session, col, func, or_, select
@@ -26,6 +30,16 @@ from app.models import (
 )
 
 app = FastAPI(title="Breadcrumbs API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:5174").split(","),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+router = APIRouter(prefix="/api")
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +103,7 @@ def get_or_create_tags(session: Session, tag_creates: list[TagCreate]) -> list[T
 # ---------- theme endpoints ----------
 
 
-@app.post("/themes", response_model=ThemePublic, status_code=201)
+@router.post("/themes", response_model=ThemePublic, status_code=201)
 def create_theme(
     theme_create: ThemeCreate,
     session: Session = Depends(get_session),
@@ -104,7 +118,7 @@ def create_theme(
     return theme
 
 
-@app.get("/themes", response_model=list[ThemePublic])
+@router.get("/themes", response_model=list[ThemePublic])
 def list_themes(
     session: Session = Depends(get_session),
     visibility: Optional[Visibility] = None,
@@ -139,7 +153,7 @@ def list_themes(
     return themes
 
 
-@app.get("/themes/{theme_id}", response_model=ThemePublic)
+@router.get("/themes/{theme_id}", response_model=ThemePublic)
 def get_theme(
     theme_id: int,
     session: Session = Depends(get_session),
@@ -150,7 +164,7 @@ def get_theme(
     return theme
 
 
-@app.put("/themes/{theme_id}", response_model=ThemePublic)
+@router.put("/themes/{theme_id}", response_model=ThemePublic)
 def update_theme(
     theme_id: int,
     theme_update: ThemeUpdate,
@@ -175,7 +189,7 @@ def update_theme(
     return theme
 
 
-@app.delete("/themes/{theme_id}", status_code=204)
+@router.delete("/themes/{theme_id}", status_code=204)
 def delete_theme(
     theme_id: int,
     session: Session = Depends(get_session),
@@ -190,7 +204,7 @@ def delete_theme(
 # ---------- breadcrumb endpoints ----------
 
 
-@app.post(
+@router.post(
     "/themes/{theme_id}/breadcrumbs",
     response_model=BreadcrumbPublic,
     status_code=201,
@@ -241,7 +255,7 @@ def create_breadcrumb(
     return breadcrumb
 
 
-@app.get(
+@router.get(
     "/themes/{theme_id}/breadcrumbs",
     response_model=list[BreadcrumbPublic],
 )
@@ -262,7 +276,7 @@ def list_breadcrumbs(
     return breadcrumbs
 
 
-@app.put(
+@router.put(
     "/themes/{theme_id}/breadcrumbs/{breadcrumb_id}",
     response_model=BreadcrumbPublic,
 )
@@ -283,7 +297,7 @@ def update_breadcrumb(
     return breadcrumb
 
 
-@app.delete(
+@router.delete(
     "/themes/{theme_id}/breadcrumbs/{breadcrumb_id}",
     status_code=204,
 )
@@ -302,7 +316,7 @@ def delete_breadcrumb(
 # ---------- tag endpoints ----------
 
 
-@app.get("/tags", response_model=list[TagWithCount])
+@router.get("/tags", response_model=list[TagWithCount])
 def list_tags(session: Session = Depends(get_session)):
     statement = (
         select(Tag, func.count(ThemeTag.theme_id).label("theme_count"))
@@ -317,7 +331,7 @@ def list_tags(session: Session = Depends(get_session)):
     ]
 
 
-@app.get("/tags/{tag_name}/themes", response_model=list[ThemePublic])
+@router.get("/tags/{tag_name}/themes", response_model=list[ThemePublic])
 def get_themes_by_tag(
     tag_name: str,
     session: Session = Depends(get_session),
@@ -328,3 +342,21 @@ def get_themes_by_tag(
     if not tag:
         raise HTTPException(status_code=404, detail="Tag not found")
     return tag.themes
+
+
+# ---------- app assembly ----------
+
+app.include_router(router)
+
+# In production, serve the built frontend
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+STATIC_DIR = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+
+if ENVIRONMENT == "production" and STATIC_DIR.exists():
+    app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="static-assets")
+
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        if full_path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="Not found")
+        return FileResponse(STATIC_DIR / "index.html")
