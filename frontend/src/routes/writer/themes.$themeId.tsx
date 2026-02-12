@@ -93,8 +93,8 @@ function ThemeEditor() {
         )}
 
         {breadcrumbs && breadcrumbs.length === 0 && (
-          <p className="text-sm text-muted-foreground py-4">
-            No breadcrumbs yet. Add your first thought below.
+          <p className="text-sm text-muted-foreground italic py-4">
+            This theme has no breadcrumbs yet. Drop your first thought.
           </p>
         )}
 

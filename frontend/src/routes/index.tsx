@@ -53,15 +53,11 @@ function ReaderStream() {
 
       {themes && themes.length === 0 && (
         <div className="py-12 text-center space-y-2">
-          <p className="text-muted-foreground">
-            {tag || q ? "No themes match your filters." : "No published themes yet."}
+          <p className="text-muted-foreground italic">
+            {tag || q
+              ? "No breadcrumbs along this path."
+              : "The trail is quiet. No breadcrumbs have been dropped here yet."}
           </p>
-          {!tag && !q && (
-            <p className="text-sm text-muted-foreground">
-              When themes are published, they&apos;ll appear here as a continuous
-              stream.
-            </p>
-          )}
         </div>
       )}
 
