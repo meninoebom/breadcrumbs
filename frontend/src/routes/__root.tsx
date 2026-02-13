@@ -66,7 +66,7 @@ function SearchBar() {
         name="q"
         type="text"
         defaultValue={currentQ}
-        placeholder="Search the trail..."
+        placeholder="Search..."
         className="h-8 w-48 rounded-md border bg-background pl-8 pr-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
       />
     </form>
