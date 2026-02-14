@@ -37,8 +37,9 @@ Breadcrumbs is a web application for capturing and organizing stream-of-consciou
 - Vite - Build tool and dev server
 
 **Deployment:**
-- Docker for containerization
-- PostgreSQL database
+- Railway (single service, auto-deploy from main)
+- Custom domain: [crumb.blog](https://crumb.blog)
+- PostgreSQL (Railway-managed)
 
 ### Key Components
 
