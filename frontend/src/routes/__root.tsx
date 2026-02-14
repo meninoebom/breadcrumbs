@@ -7,8 +7,9 @@ import {
   useRouterState,
 } from "@tanstack/react-router"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { Search, PenLine } from "lucide-react"
+import { Search, PenLine, LogOut } from "lucide-react"
 import type { StreamSearch } from "@/lib/types"
+import { isAuthenticated, logout } from "@/lib/auth"
 
 const TanStackRouterDevtools = import.meta.env.PROD
   ? () => null
@@ -103,13 +104,26 @@ function RootLayout() {
               >
                 About
               </Link>
-              <Link
-                to="/writer"
-                className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground no-underline"
-              >
-                <PenLine className="size-4" />
-                Write
-              </Link>
+              {isAuthenticated() ? (
+                <>
+                  <Link
+                    to="/writer"
+                    className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground no-underline"
+                  >
+                    <PenLine className="size-4" />
+                    Write
+                  </Link>
+                  <button
+                    onClick={() => {
+                      logout()
+                      window.location.href = "/"
+                    }}
+                    className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+                  >
+                    <LogOut className="size-4" />
+                  </button>
+                </>
+              ) : null}
             </div>
           </div>
         </header>

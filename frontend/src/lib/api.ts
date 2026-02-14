@@ -1,3 +1,4 @@
+import { clearToken, getToken } from "./auth"
 import type {
   BreadcrumbInput,
   BreadcrumbPublic,
@@ -87,11 +88,16 @@ async function apiMutate<T = void>(
   url: string,
   { method, body, label }: { method: string; body?: unknown; label: string },
 ): Promise<T> {
+  const token = getToken()
+  const headers: Record<string, string> = {}
+  if (body) headers["Content-Type"] = "application/json"
+  if (token) headers["Authorization"] = `Bearer ${token}`
+
   let res: Response
   try {
     res = await fetch(url, {
       method,
-      headers: body ? { "Content-Type": "application/json" } : undefined,
+      headers: Object.keys(headers).length ? headers : undefined,
       body: body ? JSON.stringify(body) : undefined,
     })
   } catch (err) {
@@ -101,6 +107,11 @@ async function apiMutate<T = void>(
     )
   }
   if (!res.ok) {
+    if (res.status === 401) {
+      clearToken()
+      window.location.href = "/login"
+      throw new Error("Authentication required")
+    }
     let detail = ""
     try {
       const b = await res.json()

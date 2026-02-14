@@ -12,6 +12,7 @@ from sqlalchemy.exc import DataError, IntegrityError, OperationalError
 from starlette.requests import Request
 from sqlmodel import Session, col, func, or_, select
 
+from app.auth import create_access_token, require_admin, verify_admin_password
 from app.db import get_session
 from app.models import (
     Breadcrumb,
@@ -100,6 +101,28 @@ def get_or_create_tags(session: Session, tag_creates: list[TagCreate]) -> list[T
     return tags
 
 
+# ---------- auth endpoints ----------
+
+
+from pydantic import BaseModel as _BaseModel
+
+
+class LoginRequest(_BaseModel):
+    password: str
+
+
+class LoginResponse(_BaseModel):
+    access_token: str
+
+
+@router.post("/auth/login", response_model=LoginResponse)
+def login(req: LoginRequest):
+    if not verify_admin_password(req.password):
+        raise HTTPException(status_code=401, detail="Invalid password")
+    token = create_access_token()
+    return LoginResponse(access_token=token)
+
+
 # ---------- theme endpoints ----------
 
 
@@ -107,6 +130,7 @@ def get_or_create_tags(session: Session, tag_creates: list[TagCreate]) -> list[T
 def create_theme(
     theme_create: ThemeCreate,
     session: Session = Depends(get_session),
+    _admin: None = Depends(require_admin),
 ):
     tags = get_or_create_tags(session, theme_create.tags)
     theme_data = theme_create.model_dump(exclude={"tags"})
@@ -169,6 +193,7 @@ def update_theme(
     theme_id: int,
     theme_update: ThemeUpdate,
     session: Session = Depends(get_session),
+    _admin: None = Depends(require_admin),
 ):
     theme = session.get(Theme, theme_id)
     if not theme:
@@ -193,6 +218,7 @@ def update_theme(
 def delete_theme(
     theme_id: int,
     session: Session = Depends(get_session),
+    _admin: None = Depends(require_admin),
 ):
     theme = session.get(Theme, theme_id)
     if not theme:
@@ -213,6 +239,7 @@ def create_breadcrumb(
     theme_id: int,
     breadcrumb_in: BreadcrumbCreateInput,
     session: Session = Depends(get_session),
+    _admin: None = Depends(require_admin),
 ):
     theme = session.get(Theme, theme_id)
     if not theme:
@@ -285,6 +312,7 @@ def update_breadcrumb(
     breadcrumb_id: int,
     breadcrumb_in: BreadcrumbBase,
     session: Session = Depends(get_session),
+    _admin: None = Depends(require_admin),
 ):
     breadcrumb = session.get(Breadcrumb, breadcrumb_id)
     if not breadcrumb or breadcrumb.theme_id != theme_id:
@@ -305,6 +333,7 @@ def delete_breadcrumb(
     theme_id: int,
     breadcrumb_id: int,
     session: Session = Depends(get_session),
+    _admin: None = Depends(require_admin),
 ):
     breadcrumb = session.get(Breadcrumb, breadcrumb_id)
     if not breadcrumb or breadcrumb.theme_id != theme_id:

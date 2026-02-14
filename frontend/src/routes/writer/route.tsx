@@ -1,10 +1,16 @@
 import { useState } from "react"
-import { createFileRoute, Link, Outlet } from "@tanstack/react-router"
+import { createFileRoute, Link, Outlet, redirect } from "@tanstack/react-router"
 import { Plus } from "lucide-react"
+import { isAuthenticated } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import { CreateThemeDialog } from "@/components/writer/create-theme-dialog"
 
 export const Route = createFileRoute("/writer")({
+  beforeLoad: () => {
+    if (!isAuthenticated()) {
+      throw redirect({ to: "/login" })
+    }
+  },
   component: WriterLayout,
 })
 

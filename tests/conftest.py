@@ -8,6 +8,7 @@ from sqlmodel.pool import StaticPool
 # Import models to ensure they're registered before creating tables
 from app.models import Breadcrumb, Tag, Theme, ThemeTag
 from app.api import app
+from app.auth import require_admin
 from app.db import get_session
 
 
@@ -37,6 +38,7 @@ def client_fixture(session: Session):
         return session
 
     app.dependency_overrides[get_session] = get_session_override
+    app.dependency_overrides[require_admin] = lambda: None
     client = TestClient(app)
     yield client
     app.dependency_overrides.clear()
