@@ -1,56 +1,31 @@
 # Breadcrumbs Roadmap
 
-## MVP (v0.1.0)
+## Completed
 
-### Phase 1: Data Model
-**Status:** Complete
+- **Data model** — SQLModel models, cascade deletes, PostgreSQL + Alembic migrations
+- **API** — 11 REST endpoints, search, filtering, pagination, 83 tests
+- **Frontend** — Reader stream, writer dashboard, tag browsing, search
+- **Deploy** — Railway, CI/CD, custom domain (crumb.blog)
+- **Auth** — JWT auth protecting all mutating endpoints
 
-SQLModel models (Theme, Breadcrumb, Tag, ThemeTag), cascade deletes,
-PostgreSQL + Alembic migrations, 31 model tests.
+## Up Next
 
-### Phase 2: API Endpoints
-**Status:** Complete
+### 1. Agent Authoring — OpenClaw Integration
+Connect the OpenClaw agent so it can create themes and breadcrumbs via the API. The REST API is already agent-friendly (markdown in, markdown out) — this is about wiring up the agent to POST content autonomously.
 
-11 REST endpoints for themes, breadcrumbs, tags. Search, filtering,
-pagination. 70 total tests.
+### 2. Tag Navigation Improvements
+Upgrade the tag sidebar for discovery and scale:
+- **Sort by usage** — most-used tags first instead of alphabetical
+- **Visual indicator** — small bar, count badge, or similar treatment beside each tag showing relative usage
+- **Tag search** — filter/typeahead field above the tag list so readers can find tags quickly as the list grows
 
-### Phase 3: Frontend
-**Status:** In progress
+The `/api/tags` endpoint already returns `theme_count` per tag, so sorting and indicators are purely frontend. Tag search may also be frontend-only (client-side filter) unless the list gets very large.
 
-| Issue | Scope | Depends on |
-|-------|-------|------------|
-| [#9](https://github.com/meninoebom/breadcrumbs/issues/9) | Initialize frontend (Vite, TanStack, Tailwind, Shadcn) | -- |
-| [#10](https://github.com/meninoebom/breadcrumbs/issues/10) | Reader stream view (themes + breadcrumbs) | #9 |
-| [#11](https://github.com/meninoebom/breadcrumbs/issues/11) | Tag browsing, filtering, search | #10 |
-| [#12](https://github.com/meninoebom/breadcrumbs/issues/12) | Writer dashboard + theme editor | #9 |
+### 3. Tag Authoring UX
+Improve the tag input experience in the writer:
+- **Typeahead** — suggest existing tags as the writer types
+- **Chip behavior** — after typing a comma (or selecting a suggestion), the tag solidifies into a visual chip so the writer can see at a glance whether it matched an existing tag or will create a new one
+- **Goal:** Reduce accidental tag duplication from typos
 
-### Phase 4: Polish & Deploy
-**Status:** Complete
-
-- Global exception handlers ([#8](https://github.com/meninoebom/breadcrumbs/issues/8))
-- CI/CD pipeline (GitHub Actions — backend + frontend in parallel)
-- Railway deployment (single service, auto-deploy from main)
-- Loading states, error handling, responsive design
-
-## Post-MVP
-
-### UI Polish
-- Date nav sidebar — sticky left-column date navigator that highlights the current date section as the user scrolls, with forward/backward time navigation
-- Tag search — search/filter within the tag sidebar as the list grows
-- Markdown preview in editor
-- Tag autocomplete
-- Image upload
-
-### Infrastructure
-- Real authentication (OAuth/JWT)
-- RSS feed
-- Social sharing
-
-### Input Surfaces
-- Voice input — add breadcrumbs by talking to phone via Larry (agent-mediated voice capture)
-- Project log funneling — post-PR learning journal entries auto-flow into breadcrumbs as new themes/crumbs
-
-### Agent Integration
-- Agent-native API — all content is markdown-backed, making the REST API naturally readable/writable by LLMs without serialization layers
-- Chat bot on About page — trained on breadcrumbs, represents how I think; visitors can ask it questions about me, my work, or whether a role is a good fit
-- Agent authoring — agents can create themes and breadcrumbs via the API (voice input, project log funneling, and chat bot all reduce to "agent POSTs markdown")
+### 4. Time-Based Navigation
+Navigate the stream by time period — jump to a year, then drill into months. Low priority until the archive grows large enough to need it.
