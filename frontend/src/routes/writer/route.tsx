@@ -28,7 +28,12 @@ function WriterLayout() {
           >
             &larr; Reader
           </Link>
-          <h1 className="text-lg font-semibold">Writer</h1>
+          <Link
+            to="/writer"
+            className="text-lg font-semibold no-underline text-foreground"
+          >
+            Writer
+          </Link>
         </div>
         <Button size="sm" onClick={() => setDialogOpen(true)}>
           <Plus className="size-4" />
