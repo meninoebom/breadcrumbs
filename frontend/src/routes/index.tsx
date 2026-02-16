@@ -42,7 +42,11 @@ function ReaderStream() {
   const dateGroups = themes ? groupByDate(themes) : []
 
   return (
-    <div className="flex gap-10">
+    <div className="flex flex-col md:flex-row gap-6 md:gap-10">
+      <div className="md:hidden">
+        <TagBar activeTag={tag} horizontal />
+      </div>
+
       <aside className="hidden md:block w-40 shrink-0 sticky top-8 self-start">
         <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground/60 mb-3">
           Tags
@@ -99,7 +103,7 @@ function ActiveFilters({ tag, q }: { tag?: string; q?: string }) {
           <Link
             to="/"
             search={(prev: StreamSearch) => ({ q: prev.q })}
-            className="hover:text-foreground"
+            className="hover:text-foreground p-1"
           >
             <X className="size-3" />
           </Link>
@@ -111,7 +115,7 @@ function ActiveFilters({ tag, q }: { tag?: string; q?: string }) {
           <Link
             to="/"
             search={(prev: StreamSearch) => ({ tag: prev.tag })}
-            className="hover:text-foreground"
+            className="hover:text-foreground p-1"
           >
             <X className="size-3" />
           </Link>

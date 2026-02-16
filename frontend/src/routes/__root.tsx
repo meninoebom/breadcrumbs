@@ -60,7 +60,7 @@ function SearchBar() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="relative">
+    <form onSubmit={handleSubmit} className="relative flex-1 md:flex-initial">
       <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
       <input
         key={currentQ}
@@ -68,7 +68,7 @@ function SearchBar() {
         type="text"
         defaultValue={currentQ}
         placeholder="Search..."
-        className="h-8 w-48 rounded-md border bg-background pl-8 pr-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+        className="h-8 w-full md:w-48 rounded-md border bg-background pl-8 pr-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
       />
     </form>
   )
@@ -82,8 +82,8 @@ function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <div className="min-h-screen bg-background text-foreground">
-        <header className="border-b px-6 py-4">
-          <div className="mx-auto max-w-5xl flex items-center justify-between">
+        <header className="border-b px-4 py-4 md:px-6">
+          <div className="mx-auto max-w-5xl flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div>
               <Link
                 to="/"
@@ -92,11 +92,11 @@ function RootLayout() {
               >
                 Breadcrumbs
               </Link>
-              <p className="text-sm italic text-muted-foreground">
+              <p className="text-sm italic text-muted-foreground hidden md:block">
                 Traveler, there is no path. The path is made by walking.
               </p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 w-full md:w-auto">
               {!isWriterRoute && <SearchBar />}
               <Link
                 to="/about"
@@ -134,7 +134,7 @@ function RootLayout() {
             </div>
           </div>
         </header>
-        <main className="mx-auto max-w-5xl px-6 py-8">
+        <main className="mx-auto max-w-5xl px-4 py-6 md:px-6 md:py-8">
           <Outlet />
         </main>
       </div>

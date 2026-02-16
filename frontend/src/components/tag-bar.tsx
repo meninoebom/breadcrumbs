@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 
 interface TagBarProps {
   activeTag?: string
+  horizontal?: boolean
 }
 
 /**
@@ -33,7 +34,7 @@ function getUsageTier(count: number, maxCount: number): number {
   return 0
 }
 
-export function TagBar({ activeTag }: TagBarProps) {
+export function TagBar({ activeTag, horizontal = false }: TagBarProps) {
   const { data: tags, error } = useQuery({
     queryKey: ["tags"],
     queryFn: fetchTags,
@@ -70,6 +71,46 @@ export function TagBar({ activeTag }: TagBarProps) {
       <p className="text-xs text-muted-foreground italic">No tags yet.</p>
     )
 
+  if (horizontal) {
+    return (
+      <nav className="flex gap-2 overflow-x-auto pb-2 scrollbar-none text-sm">
+        <Link
+          to="/"
+          search={(prev: StreamSearch) => ({ q: prev.q })}
+          aria-current={!activeTag ? "page" : undefined}
+          className={cn(
+            "shrink-0 rounded-full px-3 py-1.5 no-underline transition-colors whitespace-nowrap",
+            !activeTag
+              ? "bg-foreground text-background font-medium"
+              : "bg-secondary text-muted-foreground hover:text-foreground",
+          )}
+        >
+          all
+        </Link>
+        {sortedTags.map((tag) => {
+          const isActive = activeTag === tag.name
+          return (
+            <Link
+              key={tag.id}
+              to="/"
+              search={(prev: StreamSearch) => ({ q: prev.q, tag: tag.name })}
+              aria-label={`${tag.name}, ${tag.theme_count} ${tag.theme_count === 1 ? "theme" : "themes"}`}
+              aria-current={isActive ? "page" : undefined}
+              className={cn(
+                "shrink-0 rounded-full px-3 py-1.5 no-underline transition-colors whitespace-nowrap",
+                isActive
+                  ? "bg-foreground text-background font-medium"
+                  : "bg-secondary text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {tag.name}
+            </Link>
+          )
+        })}
+      </nav>
+    )
+  }
+
   return (
     <nav className="space-y-1 text-sm">
       <Link
@@ -77,7 +118,7 @@ export function TagBar({ activeTag }: TagBarProps) {
         search={(prev: StreamSearch) => ({ q: prev.q })}
         aria-current={!activeTag ? "page" : undefined}
         className={cn(
-          "block no-underline hover:text-foreground transition-colors",
+          "block py-0.5 no-underline hover:text-foreground transition-colors",
           !activeTag
             ? "text-foreground font-medium"
             : "text-muted-foreground",
@@ -96,7 +137,7 @@ export function TagBar({ activeTag }: TagBarProps) {
             aria-label={`${tag.name}, ${tag.theme_count} ${tag.theme_count === 1 ? "theme" : "themes"}`}
             aria-current={isActive ? "page" : undefined}
             className={cn(
-              "block truncate no-underline hover:text-foreground transition-colors",
+              "block truncate py-0.5 no-underline hover:text-foreground transition-colors",
               isActive ? "text-foreground font-medium" : USAGE_TIER_CLASSES[tier],
             )}
           >
