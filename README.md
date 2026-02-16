@@ -22,7 +22,7 @@ Inspired by [a public Google Doc](https://docs.google.com/document/d/1GrEFrdF_Iz
 ```bash
 # Backend (from project root)
 uv sync
-uv run uvicorn app.api:app --port 8100 --reload  # http://localhost:8100
+uv run dev  # http://localhost:8100
 
 # Frontend
 cd frontend
