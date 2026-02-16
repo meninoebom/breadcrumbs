@@ -1,6 +1,6 @@
 # Breadcrumbs
 
-> A blog of collected crumbs that reads like one long rant
+> Traveler, there is no path. The path is made by walking.
 
 **Live:** [crumb.blog](https://crumb.blog)
 

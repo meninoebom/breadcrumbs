@@ -34,13 +34,12 @@
 
 **File Structure:**
 ```
-/backend
-  /app
-    /api       - API routes
-    /models    - SQLModel database models
-    /schemas   - Pydantic schemas for validation
-    /core      - Config, database, deps
-    /services  - Business logic
+/app
+  api.py       - FastAPI routes (all endpoints)
+  models.py    - SQLModel database + Pydantic models
+  auth.py      - JWT auth, password verification, require_admin dependency
+  db.py        - Database engine, session management, dotenv loading
+  cli.py       - CLI entry points (uv run dev)
 ```
 
 ### TypeScript Frontend (React)
@@ -104,13 +103,17 @@ See `docs/log/README.md` for format and dimensions.
 - **Theme creation:** Writers create themes as containers for related breadcrumbs
 - **Breadcrumb authoring:** Add small individual thought atoms (breadcrumbs) to themes
 - **Tag-based organization:** Tags applied at theme level for filtering and discovery
+- **Tag usage gradient:** Tags sorted by usage with 5-tier opacity gradient showing relative popularity
+- **Tag chip input:** Typeahead suggestions, comma/Enter to commit, visual chips distinguishing existing vs new tags
 - **Draft/publish workflow:** Writers can draft themes before publishing to readers
 - **Authenticated editing:** Writers login to see unpublished themes and edit existing ones
 - **Easy to read:** Continuous stream presentation with clear theme boundaries (not traditional blog articles)
-- **Tag browsing:** Readers browse tags alphabetically and filter themes by tag
+- **Tag browsing:** Readers browse tags sorted by usage and filter themes by tag
 - **Search:** Full-text search across theme bodies, breadcrumb content, and tags
 - **Timestamps:** Every breadcrumb has a timestamp
 - **Markdown rendering:** Full markdown support for formatting
+- **Mobile responsive:** Horizontal scrollable tag pills on mobile, stacked header, touch-friendly targets
+- **Agent authoring:** OpenClaw skill enables content creation via Telegram (voice or text input)
 
 ### Key Design Decisions
 - **Visual style:** Reads like one long rant/stream-of-consciousness rather than discrete articles
@@ -231,6 +234,12 @@ tags: List["Tag"] = Relationship(
 - Field validators in base classes (table=False) don't apply to table models (table=True)
 - Use `mode='before'` in `@field_validator` for pre-coercion validation
 - Known limitation: Name normalization validators won't run on table models - needs custom save logic
+
+**Module-level `os.getenv()` and `load_dotenv()` ordering:**
+- `load_dotenv()` is called in `db.py`, but any module that reads env vars at import time (e.g. `auth.py`) may be imported *before* `db.py`
+- If that happens, `os.getenv()` returns empty strings because `.env` hasn't been loaded yet
+- Fix: any module that reads env vars at module level should call `load_dotenv()` itself before `os.getenv()`
+- This bit us with `ADMIN_PASSWORD` — login silently failed because the value was empty
 
 **Testing with SQLite:**
 - SQLite doesn't preserve timezone info on datetime fields
