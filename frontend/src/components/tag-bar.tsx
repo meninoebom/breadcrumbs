@@ -85,7 +85,7 @@ export function TagBar({ activeTag, horizontal = false }: TagBarProps) {
               : "bg-secondary text-muted-foreground hover:text-foreground",
           )}
         >
-          all
+          All
         </Link>
         {sortedTags.map((tag) => {
           const isActive = activeTag === tag.name
@@ -112,20 +112,21 @@ export function TagBar({ activeTag, horizontal = false }: TagBarProps) {
   }
 
   return (
-    <nav className="space-y-1 text-sm">
+    <nav className="text-sm">
       <Link
         to="/"
         search={(prev: StreamSearch) => ({ q: prev.q })}
         aria-current={!activeTag ? "page" : undefined}
         className={cn(
-          "block py-0.5 no-underline hover:text-foreground transition-colors",
+          "block py-0.5 mb-2 no-underline hover:text-foreground transition-colors",
           !activeTag
             ? "text-foreground font-medium"
             : "text-muted-foreground",
         )}
       >
-        all
+        All
       </Link>
+      <div className="space-y-1 border-t border-border pt-2">
       {sortedTags.map((tag) => {
         const isActive = activeTag === tag.name
         const tier = getUsageTier(tag.theme_count, maxCount)
@@ -145,6 +146,7 @@ export function TagBar({ activeTag, horizontal = false }: TagBarProps) {
           </Link>
         )
       })}
+      </div>
     </nav>
   )
 }
