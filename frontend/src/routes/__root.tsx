@@ -93,7 +93,7 @@ function RootLayout() {
                 Breadcrumbs
               </Link>
               <p className="text-sm italic text-muted-foreground">
-                small thoughts, dropped along the way
+                Traveler, there is no path. The path is made by walking.
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -123,7 +123,14 @@ function RootLayout() {
                     <LogOut className="size-4" />
                   </button>
                 </>
-              ) : null}
+              ) : (
+                <Link
+                  to="/login"
+                  className="text-sm text-muted-foreground hover:text-foreground no-underline"
+                >
+                  Login
+                </Link>
+              )}
             </div>
           </div>
         </header>

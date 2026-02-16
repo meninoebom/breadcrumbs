@@ -96,7 +96,7 @@ export function TagBar({ activeTag }: TagBarProps) {
             aria-label={`${tag.name}, ${tag.theme_count} ${tag.theme_count === 1 ? "theme" : "themes"}`}
             aria-current={isActive ? "page" : undefined}
             className={cn(
-              "block no-underline hover:text-foreground transition-colors",
+              "block truncate no-underline hover:text-foreground transition-colors",
               isActive ? "text-foreground font-medium" : USAGE_TIER_CLASSES[tier],
             )}
           >
