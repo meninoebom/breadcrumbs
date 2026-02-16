@@ -2,9 +2,9 @@ import { useState } from "react"
 import { useNavigate } from "@tanstack/react-router"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
+import { TagInput } from "@/components/ui/tag-input"
 import {
   Dialog,
   DialogContent,
@@ -20,24 +20,17 @@ interface CreateThemeDialogProps {
   onOpenChange: (open: boolean) => void
 }
 
-function parseTags(input: string): { name: string }[] {
-  return input
-    .split(",")
-    .map((t) => t.trim())
-    .filter(Boolean)
-    .map((name) => ({ name }))
-}
-
 export function CreateThemeDialog({ open, onOpenChange }: CreateThemeDialogProps) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [body, setBody] = useState("")
-  const [tags, setTags] = useState("")
+  const [tags, setTags] = useState<string[]>([])
 
   const mutation = useMutation({
     mutationFn: createTheme,
     onSuccess: (newTheme) => {
       queryClient.invalidateQueries({ queryKey: ["themes"] })
+      queryClient.invalidateQueries({ queryKey: ["tags"] })
       onOpenChange(false)
       resetForm()
       navigate({
@@ -49,7 +42,7 @@ export function CreateThemeDialog({ open, onOpenChange }: CreateThemeDialogProps
 
   function resetForm() {
     setBody("")
-    setTags("")
+    setTags([])
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -57,7 +50,7 @@ export function CreateThemeDialog({ open, onOpenChange }: CreateThemeDialogProps
     if (!body.trim()) return
     mutation.mutate({
       body_md: body.trim(),
-      tags: tags.trim() ? parseTags(tags) : undefined,
+      tags: tags.length > 0 ? tags.map((name) => ({ name })) : undefined,
     })
   }
 
@@ -86,11 +79,11 @@ export function CreateThemeDialog({ open, onOpenChange }: CreateThemeDialogProps
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="tags">Tags (comma-separated)</Label>
-              <Input
+              <Label htmlFor="tags">Tags</Label>
+              <TagInput
                 id="tags"
                 value={tags}
-                onChange={(e) => setTags(e.target.value)}
+                onChange={setTags}
                 placeholder="e.g. react, architecture, patterns"
               />
             </div>

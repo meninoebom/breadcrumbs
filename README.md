@@ -20,12 +20,9 @@ Inspired by [a public Google Doc](https://docs.google.com/document/d/1GrEFrdF_Iz
 ## Development
 
 ```bash
-# Backend
-cd backend
-python -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
-alembic upgrade head
-uvicorn app.main:app --reload  # http://localhost:8000
+# Backend (from project root)
+uv sync
+uv run uvicorn app.api:app --port 8100 --reload  # http://localhost:8100
 
 # Frontend
 cd frontend

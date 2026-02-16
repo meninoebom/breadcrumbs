@@ -4,11 +4,11 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 import Markdown from "react-markdown"
 import { Pencil, Check, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
+import { TagInput } from "@/components/ui/tag-input"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,31 +27,19 @@ interface ThemeHeaderEditorProps {
   theme: ThemePublic
 }
 
-function parseTags(input: string): { name: string }[] {
-  return input
-    .split(",")
-    .map((t) => t.trim())
-    .filter(Boolean)
-    .map((name) => ({ name }))
-}
-
-function tagsToString(tags: { name: string }[]): string {
-  return tags.map((t) => t.name).join(", ")
-}
-
 export function ThemeHeaderEditor({ theme }: ThemeHeaderEditorProps) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
   const [editing, setEditing] = useState(false)
   const [body, setBody] = useState(theme.body_md)
-  const [tags, setTags] = useState(tagsToString(theme.tags))
+  const [tags, setTags] = useState<string[]>(theme.tags.map((t) => t.name))
 
   // Sync local state when theme prop changes (e.g. after mutation + refetch)
   useEffect(() => {
     if (!editing) {
       setBody(theme.body_md)
-      setTags(tagsToString(theme.tags))
+      setTags(theme.tags.map((t) => t.name))
     }
   }, [theme.body_md, theme.tags, editing])
 
@@ -61,6 +49,7 @@ export function ThemeHeaderEditor({ theme }: ThemeHeaderEditorProps) {
     onSuccess: (updated) => {
       queryClient.setQueryData(["themes", theme.id], updated)
       queryClient.invalidateQueries({ queryKey: ["themes"] })
+      queryClient.invalidateQueries({ queryKey: ["tags"] })
       setEditing(false)
     },
   })
@@ -87,13 +76,13 @@ export function ThemeHeaderEditor({ theme }: ThemeHeaderEditorProps) {
     if (!body.trim()) return
     updateMutation.mutate({
       body_md: body.trim(),
-      tags: parseTags(tags),
+      tags: tags.map((name) => ({ name })),
     })
   }
 
   function handleCancel() {
     setBody(theme.body_md)
-    setTags(tagsToString(theme.tags))
+    setTags(theme.tags.map((t) => t.name))
     setEditing(false)
   }
 
@@ -110,11 +99,11 @@ export function ThemeHeaderEditor({ theme }: ThemeHeaderEditorProps) {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="edit-tags">Tags (comma-separated)</Label>
-          <Input
+          <Label htmlFor="edit-tags">Tags</Label>
+          <TagInput
             id="edit-tags"
             value={tags}
-            onChange={(e) => setTags(e.target.value)}
+            onChange={setTags}
           />
         </div>
 
