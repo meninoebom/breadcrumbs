@@ -1,9 +1,12 @@
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"
 import { fetchTags } from "@/lib/api"
 import type { StreamSearch } from "@/lib/types"
 import { cn } from "@/lib/utils"
+import { Input } from "@/components/ui/input"
+
+const VISIBLE_COUNT = 15
 
 interface TagBarProps {
   activeTag?: string
@@ -112,7 +115,117 @@ export function TagBar({ activeTag, horizontal = false }: TagBarProps) {
   }
 
   return (
-    <nav className="text-sm">
+    <VerticalTagList
+      sortedTags={sortedTags}
+      maxCount={maxCount}
+      activeTag={activeTag}
+    />
+  )
+}
+
+interface TagWithCount {
+  id: number
+  name: string
+  theme_count: number
+}
+
+function TagLink({
+  tag,
+  isActive,
+  tier,
+}: {
+  tag: TagWithCount
+  isActive: boolean
+  tier: number
+}) {
+  return (
+    <Link
+      to="/"
+      search={(prev: StreamSearch) => ({ q: prev.q, tag: tag.name })}
+      aria-label={`${tag.name}, ${tag.theme_count} ${tag.theme_count === 1 ? "theme" : "themes"}`}
+      aria-current={isActive ? "page" : undefined}
+      className={cn(
+        "block truncate py-0.5 no-underline hover:text-foreground transition-colors",
+        isActive ? "text-foreground font-medium" : USAGE_TIER_CLASSES[tier],
+      )}
+    >
+      {tag.name}
+    </Link>
+  )
+}
+
+function ToggleButton({
+  onClick,
+  children,
+}: {
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="block w-full text-left text-xs text-muted-foreground/50 hover:text-muted-foreground border-t border-border mt-2 pt-2 cursor-pointer transition-colors"
+    >
+      {children}
+    </button>
+  )
+}
+
+function VerticalTagList({
+  sortedTags,
+  maxCount,
+  activeTag,
+}: {
+  sortedTags: TagWithCount[]
+  maxCount: number
+  activeTag?: string
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const [filter, setFilter] = useState("")
+
+  const hasOverflow = sortedTags.length > VISIBLE_COUNT
+  const showFilter = sortedTags.length > 50
+  const activeInOverflow =
+    hasOverflow &&
+    sortedTags.findIndex((t) => t.name === activeTag) >= VISIBLE_COUNT
+  const showAll = expanded || activeInOverflow
+
+  // When filter is active, show all matching tags flat (no overflow split)
+  const filteredTags = filter
+    ? sortedTags.filter((t) => t.name.startsWith(filter.toLowerCase()))
+    : null
+
+  let visibleTags: TagWithCount[]
+  if (filteredTags) {
+    visibleTags = filteredTags
+  } else if (hasOverflow && !showAll) {
+    visibleTags = sortedTags.slice(0, VISIBLE_COUNT)
+  } else {
+    visibleTags = sortedTags
+  }
+
+  const hiddenCount = filteredTags ? 0 : sortedTags.length - visibleTags.length
+
+  return (
+    <nav className="text-sm max-h-[calc(100vh-4rem)] overflow-y-auto scrollbar-none">
+      {showFilter && (
+        <Input
+          placeholder="Filter tags…"
+          className="h-7 text-xs mb-2"
+          value={filter}
+          onChange={(e) => {
+            setFilter(e.target.value)
+            setExpanded(false)
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              setFilter("")
+              ;(e.target as HTMLInputElement).blur()
+            }
+          }}
+        />
+      )}
       <Link
         to="/"
         search={(prev: StreamSearch) => ({ q: prev.q })}
@@ -127,25 +240,32 @@ export function TagBar({ activeTag, horizontal = false }: TagBarProps) {
         All
       </Link>
       <div className="space-y-1 border-t border-border pt-2">
-      {sortedTags.map((tag) => {
-        const isActive = activeTag === tag.name
-        const tier = getUsageTier(tag.theme_count, maxCount)
-        return (
-          <Link
+        {visibleTags.map((tag) => (
+          <TagLink
             key={tag.id}
-            to="/"
-            search={(prev: StreamSearch) => ({ q: prev.q, tag: tag.name })}
-            aria-label={`${tag.name}, ${tag.theme_count} ${tag.theme_count === 1 ? "theme" : "themes"}`}
-            aria-current={isActive ? "page" : undefined}
-            className={cn(
-              "block truncate py-0.5 no-underline hover:text-foreground transition-colors",
-              isActive ? "text-foreground font-medium" : USAGE_TIER_CLASSES[tier],
-            )}
-          >
-            {tag.name}
-          </Link>
-        )
-      })}
+            tag={tag}
+            isActive={activeTag === tag.name}
+            tier={getUsageTier(tag.theme_count, maxCount)}
+          />
+        ))}
+
+        {hiddenCount > 0 && (
+          <ToggleButton onClick={() => setExpanded(true)}>
+            + {hiddenCount} more tags
+          </ToggleButton>
+        )}
+
+        {expanded && hasOverflow && !filteredTags && (
+          <ToggleButton onClick={() => setExpanded(false)}>
+            − fewer tags
+          </ToggleButton>
+        )}
+
+        {filteredTags && filteredTags.length === 0 && (
+          <p className="text-xs text-muted-foreground italic py-1">
+            No matching tags.
+          </p>
+        )}
       </div>
     </nav>
   )
