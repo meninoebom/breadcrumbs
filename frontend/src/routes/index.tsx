@@ -43,7 +43,7 @@ function ReaderStream() {
 
   return (
     <div className="flex flex-col md:flex-row gap-6 md:gap-10">
-      <div className="md:hidden">
+      <div className="md:hidden sticky top-0 z-10 bg-background pt-2 pb-1">
         <TagBar activeTag={tag} horizontal />
       </div>
 
