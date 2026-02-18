@@ -2,11 +2,13 @@ import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"
 import { fetchTags } from "@/lib/api"
-import type { StreamSearch } from "@/lib/types"
+import type { StreamSearch, TagWithCount } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
+import { TagSheet } from "@/components/tag-sheet"
 
 const VISIBLE_COUNT = 15
+const MOBILE_VISIBLE_COUNT = 12
 
 interface TagBarProps {
   activeTag?: string
@@ -76,6 +78,76 @@ export function TagBar({ activeTag, horizontal = false }: TagBarProps) {
 
   if (horizontal) {
     return (
+      <HorizontalTagBar
+        sortedTags={sortedTags}
+        activeTag={activeTag}
+      />
+    )
+  }
+
+  return (
+    <VerticalTagList
+      sortedTags={sortedTags}
+      maxCount={maxCount}
+      activeTag={activeTag}
+    />
+  )
+}
+
+function TagPill({
+  tag,
+  isActive,
+}: {
+  tag: TagWithCount
+  isActive: boolean
+}) {
+  return (
+    <Link
+      to="/"
+      search={(prev: StreamSearch) => ({ q: prev.q, tag: tag.name })}
+      aria-label={`${tag.name}, ${tag.theme_count} ${tag.theme_count === 1 ? "theme" : "themes"}`}
+      aria-current={isActive ? "page" : undefined}
+      className={cn(
+        "shrink-0 rounded-full px-3 py-1.5 no-underline transition-colors whitespace-nowrap",
+        isActive
+          ? "bg-foreground text-background font-medium"
+          : "bg-secondary text-muted-foreground hover:text-foreground",
+      )}
+    >
+      {tag.name}
+    </Link>
+  )
+}
+
+function HorizontalTagBar({
+  sortedTags,
+  activeTag,
+}: {
+  sortedTags: TagWithCount[]
+  activeTag?: string
+}) {
+  const [sheetOpen, setSheetOpen] = useState(false)
+
+  const needsTruncation = sortedTags.length > MOBILE_VISIBLE_COUNT
+  const activeIndex = sortedTags.findIndex((t) => t.name === activeTag)
+  const activeInHidden = needsTruncation && activeIndex >= MOBILE_VISIBLE_COUNT
+
+  let mobileTags: TagWithCount[]
+  if (!needsTruncation) {
+    mobileTags = sortedTags
+  } else if (activeInHidden) {
+    mobileTags = [
+      ...sortedTags.slice(0, MOBILE_VISIBLE_COUNT - 1),
+      sortedTags[activeIndex],
+    ]
+  } else {
+    mobileTags = sortedTags.slice(0, MOBILE_VISIBLE_COUNT)
+  }
+
+  const hiddenCount = sortedTags.length - mobileTags.length
+
+  return (
+    <>
       <nav className="flex gap-2 overflow-x-auto pb-2 scrollbar-none text-sm">
         <Link
           to="/"
@@ -90,43 +162,29 @@ export function TagBar({ activeTag, horizontal = false }: TagBarProps) {
         >
           All
         </Link>
-        {sortedTags.map((tag) => {
-          const isActive = activeTag === tag.name
-          return (
-            <Link
-              key={tag.id}
-              to="/"
-              search={(prev: StreamSearch) => ({ q: prev.q, tag: tag.name })}
-              aria-label={`${tag.name}, ${tag.theme_count} ${tag.theme_count === 1 ? "theme" : "themes"}`}
-              aria-current={isActive ? "page" : undefined}
-              className={cn(
-                "shrink-0 rounded-full px-3 py-1.5 no-underline transition-colors whitespace-nowrap",
-                isActive
-                  ? "bg-foreground text-background font-medium"
-                  : "bg-secondary text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {tag.name}
-            </Link>
-          )
-        })}
+        {mobileTags.map((tag) => (
+          <TagPill key={tag.id} tag={tag} isActive={activeTag === tag.name} />
+        ))}
+        {hiddenCount > 0 && (
+          <button
+            type="button"
+            onClick={() => setSheetOpen(true)}
+            className="shrink-0 rounded-full px-3 py-1.5 text-sm whitespace-nowrap bg-secondary text-muted-foreground hover:text-foreground transition-colors border border-dashed border-border cursor-pointer"
+          >
+            +{hiddenCount} more
+          </button>
+        )}
       </nav>
-    )
-  }
-
-  return (
-    <VerticalTagList
-      sortedTags={sortedTags}
-      maxCount={maxCount}
-      activeTag={activeTag}
-    />
+      {needsTruncation && (
+        <TagSheet
+          open={sheetOpen}
+          onOpenChange={setSheetOpen}
+          sortedTags={sortedTags}
+          activeTag={activeTag}
+        />
+      )}
+    </>
   )
-}
-
-interface TagWithCount {
-  id: number
-  name: string
-  theme_count: number
 }
 
 function TagLink({
