@@ -13,9 +13,8 @@ function About() {
         <p>
           I'm Brandon. I build things and think about building things, which
           sometimes feels like the same activity. I'm also interested in
-          consciousness and mind, football (which Americans call soccer),
-          music, dance, and how human beings come back together. To name a
-          few. All of it shows up here.
+          consciousness, philosophy of mind, football (which Americans call soccer),
+          music, dance, meditation, and how human beings can live well together. All of that and more could show up here.
         </p>
         <p>
           Breadcrumbs is where I drop the small thoughts that fall out of
