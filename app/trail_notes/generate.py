@@ -109,34 +109,49 @@ def generate_digest(
     if not content:
         raise ValueError("No published content found for this period — skipping digest.")
 
-    client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise ValueError("ANTHROPIC_API_KEY is not set")
+    client = anthropic.Anthropic(api_key=api_key)
 
     # Generate the prose
-    summary_response = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=1500,
-        system=SYSTEM_PROMPT,
-        messages=[
-            {
-                "role": "user",
-                "content": f"Here's what was published on crumb.blog this week "
-                f"({period_start.isoformat()} to {period_end.isoformat()}):\n\n{content}",
-            }
-        ],
-    )
+    try:
+        summary_response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=1500,
+            system=SYSTEM_PROMPT,
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"Here's what was published on crumb.blog this week "
+                    f"({period_start.isoformat()} to {period_end.isoformat()}):\n\n{content}",
+                }
+            ],
+        )
+    except anthropic.APIError as e:
+        raise ValueError(f"Anthropic API error during digest generation: {e}")
+
+    if not summary_response.content:
+        raise ValueError("Anthropic returned an empty response for digest prose.")
     summary_md = summary_response.content[0].text
 
     if summary_md.strip() == "SKIP":
         raise ValueError("Claude determined there's not enough content for a digest this week.")
 
     # Generate the title
-    title_response = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=100,
-        messages=[
-            {"role": "user", "content": f"{TITLE_PROMPT}\n\nDigest:\n{summary_md}"}
-        ],
-    )
+    try:
+        title_response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=100,
+            messages=[
+                {"role": "user", "content": f"{TITLE_PROMPT}\n\nDigest:\n{summary_md}"}
+            ],
+        )
+    except anthropic.APIError as e:
+        raise ValueError(f"Anthropic API error during title generation: {e}")
+
+    if not title_response.content:
+        raise ValueError("Anthropic returned an empty response for digest title.")
     title = title_response.content[0].text.strip().strip('"')
 
     digest = Digest(

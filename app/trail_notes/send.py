@@ -4,7 +4,7 @@ import logging
 from datetime import datetime, timezone
 
 import mistune
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import before_sleep_log, retry, stop_after_attempt, wait_exponential
 
 from sqlmodel import Session, select
 
@@ -20,12 +20,21 @@ from app.trail_notes.email import send_digest_email
 logger = logging.getLogger(__name__)
 
 
+# Renderer that escapes raw HTML blocks in the markdown source,
+# preventing injection from unexpected LLM output.
+_markdown = mistune.create_markdown(escape=True)
+
+
 def markdown_to_html(md: str) -> str:
-    """Convert markdown prose to simple HTML for email."""
-    return mistune.html(md)
+    """Convert markdown prose to simple HTML for email (raw HTML escaped)."""
+    return _markdown(md)
 
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10))
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(min=1, max=10),
+    before_sleep=before_sleep_log(logger, logging.WARNING),
+)
 def _send_one(
     email: str,
     unsubscribe_token: str,
@@ -48,7 +57,7 @@ def send_digest_to_subscribers(session: Session, digest: Digest) -> dict:
 
     subscribers = session.exec(
         select(Subscriber)
-        .where(Subscriber.confirmed == True)  # noqa: E712
+        .where(Subscriber.confirmed_at != None)  # noqa: E711
         .where(Subscriber.unsubscribed_at == None)  # noqa: E711
     ).all()
 
@@ -110,7 +119,7 @@ def send_digest_to_subscribers(session: Session, digest: Digest) -> dict:
     return {"sent": sent, "failed": failed, "skipped": skipped}
 
 
-def send_test_email(session: Session, digest: Digest, email: str) -> None:
+def send_test_email(digest: Digest, email: str) -> None:
     """Send a single test email for QA (doesn't create DigestSend records)."""
     digest_html = markdown_to_html(digest.summary_md)
     # Use a dummy unsubscribe token for test emails

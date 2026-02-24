@@ -266,7 +266,6 @@ class Subscriber(SQLModel, table=True):
     )
     id: Optional[int] = Field(default=None, primary_key=True)
     email: str = Field(max_length=320, description="Subscriber email address")
-    confirmed: bool = Field(default=False)
     confirmation_token: str = Field(max_length=128)
     unsubscribe_token: str = Field(max_length=128)
     confirmed_at: Optional[datetime] = Field(default=None)
@@ -274,6 +273,14 @@ class Subscriber(SQLModel, table=True):
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
     )
+
+    @property
+    def is_confirmed(self) -> bool:
+        return self.confirmed_at is not None
+
+    @property
+    def is_active(self) -> bool:
+        return self.confirmed_at is not None and self.unsubscribed_at is None
 
 
 class SubscriberCreate(SQLModel, table=False):

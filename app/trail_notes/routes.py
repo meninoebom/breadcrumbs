@@ -5,6 +5,7 @@ import logging
 import os
 import secrets
 from datetime import date, datetime, timezone
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, EmailStr
@@ -17,7 +18,6 @@ from app.models import (
     DigestPublic,
     DigestStatus,
     Subscriber,
-    SubscriberCreate,
 )
 from app.trail_notes.email import send_confirmation_email
 from app.trail_notes.generate import generate_digest, get_current_week_bounds
@@ -154,8 +154,8 @@ def send_test_endpoint(
         raise HTTPException(status_code=404, detail="Digest not found")
 
     try:
-        send_test_email(session, digest, req.email)
-    except Exception as e:
+        send_test_email(digest, req.email)
+    except (RuntimeError, OSError) as e:
         raise HTTPException(status_code=502, detail=f"Failed to send test email: {e}")
 
     return {"message": f"Test email sent to {req.email}"}
@@ -188,7 +188,7 @@ def subscribe(
     ).first()
 
     if existing:
-        if existing.confirmed and not existing.unsubscribed_at:
+        if existing.is_active:
             return SubscribeResponse(message="Already subscribed.")
         if existing.unsubscribed_at:
             # Re-subscribe: reset state and send new confirmation.
@@ -201,7 +201,6 @@ def subscribe(
                 logger.error("Failed to send confirmation to %s", email, exc_info=True)
                 raise HTTPException(status_code=502, detail="Could not send confirmation email. Please try again.")
             existing.unsubscribed_at = None
-            existing.confirmed = False
             existing.confirmed_at = None
             existing.confirmation_token = new_token
             session.add(existing)
@@ -217,7 +216,6 @@ def subscribe(
 
     subscriber = Subscriber(
         email=email,
-        confirmed=False,
         confirmation_token=secrets.token_urlsafe(48),
         unsubscribe_token=secrets.token_urlsafe(48),
     )
@@ -245,8 +243,7 @@ def confirm_subscription(
     if not subscriber:
         raise HTTPException(status_code=404, detail="Invalid or expired confirmation link.")
 
-    if not subscriber.confirmed:
-        subscriber.confirmed = True
+    if not subscriber.is_confirmed:
         subscriber.confirmed_at = datetime.now(timezone.utc)
         session.add(subscriber)
         session.flush()
@@ -283,7 +280,7 @@ cron_router = APIRouter(prefix="/api/internal", tags=["internal"])
 
 class CronResponse(BaseModel):
     digest: DigestPublic
-    action: str  # "created", "existed", "published_and_sent"
+    action: Literal["created", "existed", "published_and_sent"]
     send_result: SendResponse | None = None
 
 
@@ -314,8 +311,9 @@ def cron_weekly_digest(
 
     try:
         digest = generate_digest(session, period_start, period_end)
-    except ValueError:
-        raise HTTPException(status_code=422, detail="No content this week — skipping.")
+    except ValueError as e:
+        logger.warning("Cron digest generation skipped: %s", e)
+        raise HTTPException(status_code=422, detail=str(e))
 
     if not auto_send:
         return CronResponse(digest=DigestPublic.model_validate(digest), action="created")

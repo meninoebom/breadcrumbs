@@ -38,7 +38,6 @@ def upgrade() -> None:
     op.create_table('subscriber',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('email', sqlmodel.sql.sqltypes.AutoString(length=320), nullable=False),
-    sa.Column('confirmed', sa.Boolean(), nullable=False),
     sa.Column('confirmation_token', sqlmodel.sql.sqltypes.AutoString(length=128), nullable=False),
     sa.Column('unsubscribe_token', sqlmodel.sql.sqltypes.AutoString(length=128), nullable=False),
     sa.Column('confirmed_at', sa.DateTime(), nullable=True),
