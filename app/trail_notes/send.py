@@ -94,11 +94,18 @@ def send_digest_to_subscribers(session: Session, digest: Digest) -> dict:
         session.add(send_record)
         session.flush()
 
-    # Mark digest as sent
-    digest.status = DigestStatus.sent
-    digest.sent_at = datetime.now(timezone.utc)
-    session.add(digest)
-    session.flush()
+    # Only mark as sent if at least one email was delivered.
+    # If all failed, leave as published so admin can retry.
+    if sent > 0:
+        digest.status = DigestStatus.sent
+        digest.sent_at = datetime.now(timezone.utc)
+        session.add(digest)
+        session.flush()
+    elif failed > 0:
+        logger.error(
+            "Digest %d: all %d sends failed, leaving as published for retry",
+            digest.id, failed,
+        )
 
     return {"sent": sent, "failed": failed, "skipped": skipped}
 

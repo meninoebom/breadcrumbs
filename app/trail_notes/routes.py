@@ -1,5 +1,7 @@
 """Trail Notes API endpoints for digests and subscribers."""
 
+import hmac
+import logging
 import os
 import secrets
 from datetime import date, datetime, timezone
@@ -20,6 +22,8 @@ from app.models import (
 from app.trail_notes.email import send_confirmation_email
 from app.trail_notes.generate import generate_digest, get_current_week_bounds
 from app.trail_notes.send import send_digest_to_subscribers, send_test_email
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/digests", tags=["trail-notes"])
 
@@ -187,17 +191,28 @@ def subscribe(
         if existing.confirmed and not existing.unsubscribed_at:
             return SubscribeResponse(message="Already subscribed.")
         if existing.unsubscribed_at:
-            # Re-subscribe: reset state and send new confirmation
+            # Re-subscribe: reset state and send new confirmation.
+            # Send email BEFORE committing state change so a Resend failure
+            # doesn't leave the subscriber in a corrupted state.
+            new_token = secrets.token_urlsafe(48)
+            try:
+                send_confirmation_email(email, new_token)
+            except Exception:
+                logger.error("Failed to send confirmation to %s", email, exc_info=True)
+                raise HTTPException(status_code=502, detail="Could not send confirmation email. Please try again.")
             existing.unsubscribed_at = None
             existing.confirmed = False
             existing.confirmed_at = None
-            existing.confirmation_token = secrets.token_urlsafe(48)
+            existing.confirmation_token = new_token
             session.add(existing)
             session.flush()
-            send_confirmation_email(email, existing.confirmation_token)
             return SubscribeResponse(message="Check your inbox.")
         # Not yet confirmed — resend
-        send_confirmation_email(email, existing.confirmation_token)
+        try:
+            send_confirmation_email(email, existing.confirmation_token)
+        except Exception:
+            logger.error("Failed to resend confirmation to %s", email, exc_info=True)
+            raise HTTPException(status_code=502, detail="Could not send confirmation email. Please try again.")
         return SubscribeResponse(message="Check your inbox.")
 
     subscriber = Subscriber(
@@ -209,7 +224,11 @@ def subscribe(
     session.add(subscriber)
     session.flush()
 
-    send_confirmation_email(email, subscriber.confirmation_token)
+    try:
+        send_confirmation_email(email, subscriber.confirmation_token)
+    except Exception:
+        logger.error("Failed to send confirmation to %s", email, exc_info=True)
+        raise HTTPException(status_code=502, detail="Could not send confirmation email. Please try again.")
     return SubscribeResponse(message="Check your inbox.")
 
 
@@ -280,7 +299,7 @@ def cron_weekly_digest(
     - auto_send=true: generates, publishes, and sends in one shot.
     """
     expected = os.getenv("CRON_SECRET", "")
-    if not expected or secret != expected:
+    if not expected or not hmac.compare_digest(secret, expected):
         raise HTTPException(status_code=403, detail="Invalid cron secret")
 
     period_start, period_end = get_current_week_bounds()
