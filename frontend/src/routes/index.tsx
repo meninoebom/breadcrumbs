@@ -4,6 +4,7 @@ import { X } from "lucide-react"
 import { ThemeSection } from "@/components/theme-section"
 import { TagBar } from "@/components/tag-bar"
 import { StreamSkeleton } from "@/components/stream-skeleton"
+import { SubscribeWidget } from "@/components/subscribe-widget"
 import { fetchThemes } from "@/lib/api"
 import type { StreamSearch, ThemePublic } from "@/lib/types"
 import { dateKey, formatDateHeading } from "@/lib/utils"
@@ -73,18 +74,21 @@ function ReaderStream() {
 
         {dateGroups.length > 0 && (
           <div className="space-y-10">
-            {dateGroups.map(([key, groupThemes]) => (
-              <section key={key}>
-                <h2 className="text-xl font-semibold tracking-tight mb-6">
-                  {formatDateHeading(groupThemes[0].created_at)}
-                </h2>
+            {dateGroups.map(([key, groupThemes], groupIndex) => (
+              <div key={key}>
+                <section>
+                  <h2 className="text-xl font-semibold tracking-tight mb-6">
+                    {formatDateHeading(groupThemes[0].created_at)}
+                  </h2>
 
-                <div className="space-y-8 pl-4 border-l-2 border-border">
-                  {groupThemes.map((theme) => (
-                    <ThemeSection key={theme.id} theme={theme} />
-                  ))}
-                </div>
-              </section>
+                  <div className="space-y-8 pl-4 border-l-2 border-border">
+                    {groupThemes.map((theme) => (
+                      <ThemeSection key={theme.id} theme={theme} />
+                    ))}
+                  </div>
+                </section>
+                {groupIndex === 2 && <div className="pt-10"><SubscribeWidget /></div>}
+              </div>
             ))}
           </div>
         )}

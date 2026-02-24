@@ -375,7 +375,12 @@ def get_themes_by_tag(
 
 # ---------- app assembly ----------
 
+from app.trail_notes.routes import cron_router, router as trail_notes_router, subscriber_router
+
 app.include_router(router)
+app.include_router(trail_notes_router)
+app.include_router(subscriber_router)
+app.include_router(cron_router)
 
 # In production, serve the built frontend
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")

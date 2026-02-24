@@ -99,6 +99,12 @@ function RootLayout() {
             <div className="flex items-center gap-3 w-full md:w-auto">
               {!isWriterRoute && <SearchBar />}
               <Link
+                to="/trail-notes"
+                className="text-sm text-muted-foreground hover:text-foreground no-underline"
+              >
+                Trail Notes
+              </Link>
+              <Link
                 to="/about"
                 className="text-sm text-muted-foreground hover:text-foreground no-underline"
               >
