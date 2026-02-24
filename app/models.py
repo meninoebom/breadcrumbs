@@ -266,8 +266,8 @@ class Subscriber(SQLModel, table=True):
     )
     id: Optional[int] = Field(default=None, primary_key=True)
     email: str = Field(max_length=320, description="Subscriber email address")
-    confirmation_token: str = Field(max_length=128)
-    unsubscribe_token: str = Field(max_length=128)
+    confirmation_token: str = Field(max_length=128, index=True)
+    unsubscribe_token: str = Field(max_length=128, index=True)
     confirmed_at: Optional[datetime] = Field(default=None)
     unsubscribed_at: Optional[datetime] = Field(default=None)
     created_at: datetime = Field(

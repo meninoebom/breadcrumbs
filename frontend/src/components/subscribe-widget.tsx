@@ -11,6 +11,7 @@ export function SubscribeWidget() {
     if (!email?.trim()) return
 
     setStatus("loading")
+    setErrorMsg("")
     try {
       await subscribe(email.trim())
       setStatus("done")
