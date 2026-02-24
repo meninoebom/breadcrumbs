@@ -3,9 +3,6 @@
 import os
 
 import resend
-from dotenv import load_dotenv
-
-load_dotenv()
 
 
 def _get_base_url() -> str:

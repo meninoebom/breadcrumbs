@@ -6,7 +6,7 @@ from sqlmodel import Session, SQLModel, create_engine
 from sqlmodel.pool import StaticPool
 
 # Import models to ensure they're registered before creating tables
-from app.models import Breadcrumb, Tag, Theme, ThemeTag
+from app.models import Breadcrumb, Digest, DigestSend, Subscriber, Tag, Theme, ThemeTag
 from app.api import app
 from app.auth import require_admin
 from app.db import get_session
