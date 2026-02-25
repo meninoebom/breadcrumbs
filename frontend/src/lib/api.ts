@@ -2,6 +2,7 @@ import { clearToken, getToken } from "./auth"
 import type {
   BreadcrumbInput,
   BreadcrumbPublic,
+  DigestPublic,
   TagWithCount,
   ThemeCreateInput,
   ThemePublic,
@@ -199,6 +200,30 @@ export function deleteBreadcrumb(
   return apiMutate(`/api/themes/${themeId}/breadcrumbs/${breadcrumbId}`, {
     method: "DELETE",
     label: "delete breadcrumb",
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Trail Notes (digests)
+// ---------------------------------------------------------------------------
+
+export function fetchDigests(params?: {
+  limit?: number
+  offset?: number
+}): Promise<DigestPublic[]> {
+  const url = `/api/digests${buildQueryString(params as Record<string, string | number | undefined>)}`
+  return apiFetch(url, "digests")
+}
+
+export function fetchDigest(digestId: number): Promise<DigestPublic> {
+  return apiFetch(`/api/digests/${digestId}`, "digest")
+}
+
+export function subscribe(email: string): Promise<{ message: string }> {
+  return apiMutate("/api/subscribers/subscribe", {
+    method: "POST",
+    body: { email },
+    label: "subscribe",
   })
 }
 

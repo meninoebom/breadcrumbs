@@ -245,3 +245,32 @@ tags: List["Tag"] = Relationship(
 - SQLite doesn't preserve timezone info on datetime fields
 - Use in-memory database (`:memory:`) for fast, isolated tests
 - StaticPool required for in-memory SQLite with SQLModel
+
+### Trail Notes (Weekly AI Digest)
+
+**What:** AI-generated weekly digest of published breadcrumbs, delivered via email and viewable at `/trail-notes`.
+
+**Architecture:**
+- `app/trail_notes/` — Generation (Claude), email (Resend), sending, API routes
+- Models: `Digest`, `Subscriber`, `DigestSend` (in `app/models.py`)
+- Frontend: `/trail-notes` archive, `/trail-notes/:id` detail, `/trail-notes/confirm`, `/trail-notes/unsubscribe`
+
+**Admin workflow:**
+1. `POST /api/digests/generate` — Claude writes the digest (draft)
+2. `POST /api/digests/{id}/send-test` — Preview in your inbox
+3. `POST /api/digests/{id}/publish` — Visible on archive
+4. `POST /api/digests/{id}/send` — Deliver to all confirmed subscribers
+
+**Cron automation:** `POST /api/internal/weekly-digest?secret=X&auto_send=true`
+- Railway Cron fires every Monday at 8am UTC
+- Idempotent: won't duplicate if fired twice
+- `auto_send=false` (default) creates draft for manual review
+- `auto_send=true` generates, publishes, and sends in one shot
+
+**Key constraints:**
+- `UNIQUE(period_start)` on digest — prevents duplicate weekly digests
+- `UNIQUE(digest_id, subscriber_id)` on digest_send — prevents double-sending
+- Double opt-in: subscribe → confirmation email → click to confirm
+- Unsubscribe token is permanent (never rotated), separate from confirmation token
+
+**Voice calibration:** The Claude prompt lives in `app/trail_notes/generate.py`. Voice references: Bytes newsletter, Ted Gioia, Platformer. Edit the `SYSTEM_PROMPT` to tune.

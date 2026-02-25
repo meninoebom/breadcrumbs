@@ -59,3 +59,15 @@ export interface BreadcrumbInput {
   body_md: string
   parent_id?: number
 }
+
+/** Trail Notes digest */
+export interface DigestPublic {
+  id: number
+  title: string
+  summary_md: string
+  period_start: string
+  period_end: string
+  status: "draft" | "published" | "sent"
+  sent_at: string | null
+  created_at: string
+}

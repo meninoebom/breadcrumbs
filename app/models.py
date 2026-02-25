@@ -1,10 +1,10 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from enum import Enum
 import re
 from typing import List, Optional
 
 from pydantic import field_validator
-from sqlmodel import Field, Index, Relationship, SQLModel, text
+from sqlmodel import Field, Index, Relationship, SQLModel, UniqueConstraint, text
 
 
 class Visibility(str, Enum):
@@ -198,3 +198,119 @@ class TagWithCount(SQLModel, table=False):
     id: int
     name: str
     theme_count: int
+
+
+# ---------- trail notes: digests ----------
+
+
+class DigestStatus(str, Enum):
+    draft = "draft"
+    published = "published"
+    sent = "sent"
+
+
+class Digest(SQLModel, table=True):
+    __tablename__ = "digest"
+    __table_args__ = (
+        UniqueConstraint("period_start", name="uq_digest_period_start"),
+    )
+    id: Optional[int] = Field(default=None, primary_key=True)
+    title: str = Field(description="Digest title / headline")
+    summary_md: str = Field(description="Full digest prose in markdown")
+    period_start: date = Field(description="Start of the week this digest covers")
+    period_end: date = Field(description="End of the week this digest covers")
+    status: DigestStatus = Field(default=DigestStatus.draft)
+    sent_at: Optional[datetime] = Field(default=None)
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+    )
+    updated_at: Optional[datetime] = Field(
+        default=None, sa_column_kwargs={"onupdate": lambda: datetime.now(timezone.utc)}
+    )
+
+    sends: List["DigestSend"] = Relationship(  # type: ignore
+        back_populates="digest",
+        sa_relationship_kwargs={
+            "cascade": "all, delete-orphan",
+            "passive_deletes": True,
+            "lazy": "selectin",
+        },
+    )
+
+
+class DigestPublic(SQLModel, table=False):
+    id: int
+    title: str
+    summary_md: str
+    period_start: date
+    period_end: date
+    status: DigestStatus
+    sent_at: Optional[datetime] = None
+    created_at: datetime
+
+
+class DigestCreate(SQLModel, table=False):
+    title: str = Field(min_length=1)
+    summary_md: str = Field(min_length=1)
+    period_start: date
+    period_end: date
+
+
+# ---------- trail notes: subscribers ----------
+
+
+class Subscriber(SQLModel, table=True):
+    __tablename__ = "subscriber"
+    __table_args__ = (
+        UniqueConstraint("email", name="uq_subscriber_email"),
+    )
+    id: Optional[int] = Field(default=None, primary_key=True)
+    email: str = Field(max_length=320, description="Subscriber email address")
+    confirmation_token: str = Field(max_length=128, index=True)
+    unsubscribe_token: str = Field(max_length=128, index=True)
+    confirmed_at: Optional[datetime] = Field(default=None)
+    unsubscribed_at: Optional[datetime] = Field(default=None)
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+    )
+
+    @property
+    def is_confirmed(self) -> bool:
+        return self.confirmed_at is not None
+
+    @property
+    def is_active(self) -> bool:
+        return self.confirmed_at is not None and self.unsubscribed_at is None
+
+
+class SubscriberCreate(SQLModel, table=False):
+    email: str = Field(max_length=320, min_length=5)
+
+
+# ---------- trail notes: digest sends ----------
+
+
+class SendStatus(str, Enum):
+    pending = "pending"
+    sent = "sent"
+    failed = "failed"
+
+
+class DigestSend(SQLModel, table=True):
+    __tablename__ = "digest_send"
+    __table_args__ = (
+        UniqueConstraint("digest_id", "subscriber_id", name="uq_digest_send_digest_subscriber"),
+    )
+    id: Optional[int] = Field(default=None, primary_key=True)
+    digest_id: int = Field(foreign_key="digest.id", ondelete="CASCADE")
+    subscriber_id: int = Field(foreign_key="subscriber.id", ondelete="CASCADE")
+    status: SendStatus = Field(default=SendStatus.pending)
+    sent_at: Optional[datetime] = Field(default=None)
+
+    digest: "Digest" = Relationship(  # type: ignore
+        back_populates="sends",
+        sa_relationship_kwargs={"lazy": "selectin"},
+    )
+    subscriber: "Subscriber" = Relationship(  # type: ignore
+        sa_relationship_kwargs={"lazy": "selectin"},
+    )
