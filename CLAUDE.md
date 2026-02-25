@@ -246,31 +246,63 @@ tags: List["Tag"] = Relationship(
 - Use in-memory database (`:memory:`) for fast, isolated tests
 - StaticPool required for in-memory SQLite with SQLModel
 
-### Trail Notes (Weekly AI Digest)
+### Weekly Summaries
 
-**What:** AI-generated weekly digest of published breadcrumbs, delivered via email and viewable at `/trail-notes`.
+**What:** Short AI-generated weekly summaries (2-4 sentences) that appear inline in the main feed, interleaved chronologically with regular breadcrumbs. Think: a journalist doing a capsule recap of the week's themes.
 
 **Architecture:**
 - `app/trail_notes/` — Generation (Claude), email (Resend), sending, API routes
 - Models: `Digest`, `Subscriber`, `DigestSend` (in `app/models.py`)
-- Frontend: `/trail-notes` archive, `/trail-notes/:id` detail, `/trail-notes/confirm`, `/trail-notes/unsubscribe`
+- Frontend: summaries render inline via `WeeklySummary` component in the main feed
+- Confirm/unsubscribe pages: `/trail-notes/confirm`, `/trail-notes/unsubscribe`
 
-**Admin workflow:**
-1. `POST /api/digests/generate` — Claude writes the digest (draft)
-2. `POST /api/digests/{id}/send-test` — Preview in your inbox
-3. `POST /api/digests/{id}/publish` — Visible on archive
-4. `POST /api/digests/{id}/send` — Deliver to all confirmed subscribers
+**How summaries appear in the feed:**
+- The feed merges date-grouped themes and published digests into one chronological list
+- Summaries are keyed by `period_end` date, so they appear after that week's content
+- Different visual treatment: dashed border, muted background, lighter heading
+- Summaries are hidden when tag/search filters are active
+
+**Admin workflow (manual or agent):**
+1. `POST /api/digests/generate?period_start=YYYY-MM-DD&period_end=YYYY-MM-DD` — Claude writes a short summary (draft)
+2. `POST /api/digests/{id}/publish` — Makes it visible in the feed
+3. `POST /api/digests/{id}/send` — (Optional) deliver to email subscribers
 
 **Cron automation:** `POST /api/internal/weekly-digest?secret=X&auto_send=true`
-- Railway Cron fires every Monday at 8am UTC
+- Set up as Railway Cron to fire every Monday
 - Idempotent: won't duplicate if fired twice
 - `auto_send=false` (default) creates draft for manual review
 - `auto_send=true` generates, publishes, and sends in one shot
+- Needs `CRON_SECRET` env var set (same value in the cron URL and Railway env)
+
+**Email subscriptions (modular, can be removed):**
+- Subscribe widget at bottom of feed with double opt-in flow
+- Resend for delivery (RESEND_API_KEY env var)
+- Emails contain the short summary + link to homepage
+- Subscriber flow is fully independent of summary display
 
 **Key constraints:**
 - `UNIQUE(period_start)` on digest — prevents duplicate weekly digests
 - `UNIQUE(digest_id, subscriber_id)` on digest_send — prevents double-sending
-- Double opt-in: subscribe → confirmation email → click to confirm
-- Unsubscribe token is permanent (never rotated), separate from confirmation token
+- Indexes on `confirmation_token` and `unsubscribe_token` for fast lookups
 
-**Voice calibration:** The Claude prompt lives in `app/trail_notes/generate.py`. Voice references: Bytes newsletter, Ted Gioia, Platformer. Edit the `SYSTEM_PROMPT` to tune.
+**Generation prompt:** Lives in `app/trail_notes/generate.py`. Short journalist-style recap, third-person perspective. Edit `SYSTEM_PROMPT` to tune.
+
+**Future direction:** Monthly and yearly summaries using the same infrastructure. Progressive summarization — weekly summaries become input for monthly, monthly for yearly.
+
+### Deployment Gotchas
+
+**Railway PR deploys:** Enabled in settings but may not work on free/trial plans. Test locally against a staging DB instead:
+```bash
+createdb breadcrumbs_staging
+DATABASE_URL="postgresql://localhost/breadcrumbs_staging" uv run alembic upgrade head
+DATABASE_URL="postgresql://localhost/breadcrumbs_staging" uv run dev
+```
+
+**Environment variables for weekly summaries:**
+- `ANTHROPIC_API_KEY` — for Claude generation
+- `RESEND_API_KEY` — for email delivery
+- `CRON_SECRET` — shared secret for cron endpoint authentication
+- `BASE_URL` — defaults to `https://crumb.blog`, used in email links
+- All set as Railway shared variables, must be "shared" to the web app service
+
+**Rollback safety:** Weekly summary tables (`digest`, `subscriber`, `digest_send`) have no foreign keys into existing tables. Code changes are additive (new module, new routes appended). Rollback: `git revert` + `alembic downgrade` is clean.
