@@ -23,13 +23,13 @@ def send_confirmation_email(email: str, token: str) -> None:
     confirm_url = f"{base}/trail-notes/confirm?token={token}"
 
     resend.Emails.send({
-        "from": "Trail Notes <notes@crumb.blog>",
+        "from": "crumb.blog <notes@crumb.blog>",
         "to": [email],
-        "subject": "You're on the path.",
+        "subject": "Confirm your subscription",
         "html": f"""\
 <div style="font-family: Georgia, serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
   <p style="font-size: 16px; line-height: 1.6; color: #1a1a1a;">
-    Someone (hopefully you) asked to receive Trail Notes — a weekly letter
+    Someone (hopefully you) asked to receive weekly summaries
     from <a href="{base}" style="color: #1a1a1a;">crumb.blog</a>.
   </p>
   <p style="font-size: 16px; line-height: 1.6; color: #1a1a1a;">
@@ -59,21 +59,23 @@ def send_digest_email(
     _ensure_api_key()
     base = _get_base_url()
     unsub_url = f"{base}/trail-notes/unsubscribe?token={unsubscribe_token}"
-    web_url = f"{base}/trail-notes/{digest_id}"
 
     resend.Emails.send({
-        "from": "Trail Notes <notes@crumb.blog>",
+        "from": "crumb.blog <notes@crumb.blog>",
         "to": [email],
-        "subject": f"Trail Notes: {digest_title}",
+        "subject": f"Weekly summary: {digest_title}",
         "html": f"""\
 <div style="font-family: Georgia, serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
-  {digest_html}
-  <hr style="border: none; border-top: 1px solid #e5e5e5; margin: 32px 0;" />
-  <p style="font-size: 14px; color: #666;">
-    <a href="{web_url}" style="color: #666;">Read on the web →</a>
+  <p style="font-size: 16px; line-height: 1.6; color: #1a1a1a;">
+    {digest_html}
+  </p>
+  <p style="margin: 24px 0;">
+    <a href="{base}" style="font-size: 14px; color: #1a1a1a; text-decoration: underline;">
+      See the full feed →
+    </a>
   </p>
   <p style="font-size: 12px; color: #999;">
-    You're receiving this because you subscribed to Trail Notes on crumb.blog.<br />
+    You subscribed to weekly summaries from crumb.blog.<br />
     <a href="{unsub_url}" style="color: #999;">Unsubscribe</a>
   </p>
 </div>""",

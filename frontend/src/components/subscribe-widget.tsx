@@ -32,7 +32,7 @@ export function SubscribeWidget() {
   return (
     <div className="rounded-lg border bg-muted/30 px-6 py-5 space-y-3">
       <p className="text-sm text-muted-foreground italic">
-        Every path leaves marks. A weekly letter of what surfaced here.
+        Get a short weekly summary of what's been posted here.
       </p>
       <form onSubmit={handleSubmit} className="flex gap-2">
         <input

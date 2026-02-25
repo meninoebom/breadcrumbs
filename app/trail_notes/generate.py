@@ -16,45 +16,21 @@ from app.models import (
 )
 
 SYSTEM_PROMPT = """\
-You are ghostwriting a weekly digest called "Trail Notes" for Brandon's blog, crumb.blog.
+You are writing a brief weekly summary for Brandon's blog, crumb.blog.
 
-Voice: First-person reflective Brandon — not present-tense Brandon writing in the moment, \
-but Brandon looking back at his own week and noticing patterns. Warm, curious, self-deprecating, \
-with the occasional cultural tangent that makes the point better than a straight explanation would. \
-Think: the conversational register of Bytes newsletter meets the essayistic wandering of Ted Gioia \
-meets the honest self-examination of Platformer.
+Your job: summarize what was published this week in 2-4 sentences, like a journalist \
+writing a capsule recap. Mention the main topics touched on, note which thread seemed \
+most active or important, and if there's a mood or direction emerging, name it.
 
-Specific voice notes:
-- Use "I" naturally but don't start every sentence with it
-- Humor arrives sideways, never announced ("I spent an unreasonable amount of time on..." not "LOL")
-- Okay to reference the process of thinking itself ("somewhere around Tuesday I got obsessed with...")
-- End on something genuinely unresolved — a question you're still sitting with, not a tidy bow
-- Never use the word "delve", "utilize", "leverage", or "landscape"
-- Never use em-dashes more than once per paragraph
+Style: plain, warm, observational. Third-person perspective ("This week touched on..." \
+not "I thought about..."). No hype, no clickbait, no emojis. Think: a thoughtful friend \
+summarizing what you missed.
 
-Format (300-500 words of prose, not bullets):
-
-1. **Opening hook** — the one thread that ties the week together (1-2 sentences)
-2. **Per-theme recaps** — ordered by richness (most breadcrumbs first). For each:
-   - A one-sentence reframe of what the theme was really about
-   - A pulled quote from the best breadcrumb (use > blockquote markdown)
-   - A "Read it →" link formatted as: [Read it →](/tags/{tag-name}/themes)
-3. **Closing thought** — something unresolved, a question still being sat with (1-2 sentences)
-
-Special cases:
-- If there's only 1 theme with 3+ breadcrumbs: write a shorter "one thing" format (~200 words)
-- If there are 0 themes: respond with exactly "SKIP" and nothing else
-
-Output format: Return ONLY the markdown prose. No metadata, no YAML frontmatter, no "# Title" header. \
-The title should be returned separately when asked.
-"""
-
-TITLE_PROMPT = """\
-Given this weekly digest, write a short evocative title (under 60 chars). \
-Style: lowercase feel, no clickbait, sounds like something scrawled in a notebook margin. \
-Examples: "On solitude, recursion, and maps" or "Language drift, the smell of rain" or "The one about velocity".
-
-Return ONLY the title text, nothing else.
+Rules:
+- 2-4 sentences max. Be concise.
+- If there's only 1 theme: one sentence is fine.
+- If there are 0 themes: respond with exactly "SKIP" and nothing else.
+- Return ONLY the summary text. No markdown headers, no metadata.
 """
 
 
@@ -118,7 +94,7 @@ def generate_digest(
     try:
         summary_response = client.messages.create(
             model="claude-sonnet-4-20250514",
-            max_tokens=1500,
+            max_tokens=300,
             system=SYSTEM_PROMPT,
             messages=[
                 {
@@ -138,24 +114,8 @@ def generate_digest(
     if summary_md.strip() == "SKIP":
         raise ValueError("Claude determined there's not enough content for a digest this week.")
 
-    # Generate the title
-    try:
-        title_response = client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=100,
-            messages=[
-                {"role": "user", "content": f"{TITLE_PROMPT}\n\nDigest:\n{summary_md}"}
-            ],
-        )
-    except anthropic.APIError as e:
-        raise ValueError(f"Anthropic API error during title generation: {e}")
-
-    if not title_response.content:
-        raise ValueError("Anthropic returned an empty response for digest title.")
-    title = title_response.content[0].text.strip().strip('"')
-
     digest = Digest(
-        title=title,
+        title=f"Week of {period_start.isoformat()}",
         summary_md=summary_md,
         period_start=period_start,
         period_end=period_end,
