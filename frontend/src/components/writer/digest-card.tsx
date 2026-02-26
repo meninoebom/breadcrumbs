@@ -56,7 +56,7 @@ export function DigestCard({ digest }: { digest: DigestPublic }) {
             )}
             {digest.status === "published" && (
               <button
-                onClick={() => send.mutate()}
+                onClick={() => { if (window.confirm("Send this digest to all subscribers?")) send.mutate() }}
                 disabled={send.isPending}
                 className="text-xs px-3 py-1 rounded-md bg-foreground text-background hover:bg-foreground/90 disabled:opacity-50"
               >
@@ -67,7 +67,7 @@ export function DigestCard({ digest }: { digest: DigestPublic }) {
         </div>
         {(publish.isError || send.isError) && (
           <p className="text-xs text-destructive">
-            {(publish.error || send.error)?.message}
+            {(publish.error || send.error)?.message ?? "An unexpected error occurred."}
           </p>
         )}
       </CardContent>

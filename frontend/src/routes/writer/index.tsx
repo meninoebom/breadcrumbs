@@ -43,7 +43,7 @@ function WriterDashboard() {
 
 function DigestSection() {
   const qc = useQueryClient()
-  const { data: digests } = useQuery({
+  const { data: digests, isLoading: digestsLoading, isError: digestsError, error: digestsErrorObj } = useQuery({
     queryKey: ["digests", "admin"],
     queryFn: fetchAllDigests,
   })
@@ -68,13 +68,21 @@ function DigestSection() {
       {generate.isError && (
         <p className="text-xs text-destructive">{generate.error.message}</p>
       )}
-      {digests && digests.length > 0 ? (
+      {digestsLoading && (
+        <p className="text-sm text-muted-foreground">Loading digests...</p>
+      )}
+      {digestsError && (
+        <p className="text-sm text-destructive">
+          Failed to load digests: {digestsErrorObj?.message ?? "Unknown error"}
+        </p>
+      )}
+      {!digestsLoading && !digestsError && digests && digests.length > 0 ? (
         <div className="grid gap-4">
           {digests.map((d) => (
             <DigestCard key={d.id} digest={d} />
           ))}
         </div>
-      ) : (
+      ) : !digestsLoading && !digestsError && (
         <p className="text-sm text-muted-foreground italic">No digests yet.</p>
       )}
     </section>
