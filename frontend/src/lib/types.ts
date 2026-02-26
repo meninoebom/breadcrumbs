@@ -60,7 +60,7 @@ export interface BreadcrumbInput {
   parent_id?: number
 }
 
-/** Trail Notes digest */
+/** Weekly digest */
 export interface DigestPublic {
   id: number
   title: string

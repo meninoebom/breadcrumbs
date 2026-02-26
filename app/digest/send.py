@@ -15,7 +15,7 @@ from app.models import (
     SendStatus,
     Subscriber,
 )
-from app.trail_notes.email import send_digest_email
+from app.digest.email import send_digest_email
 
 logger = logging.getLogger(__name__)
 

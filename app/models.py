@@ -200,7 +200,7 @@ class TagWithCount(SQLModel, table=False):
     theme_count: int
 
 
-# ---------- trail notes: digests ----------
+# ---------- weekly digest ----------
 
 
 class DigestStatus(str, Enum):
@@ -256,7 +256,7 @@ class DigestCreate(SQLModel, table=False):
     period_end: date
 
 
-# ---------- trail notes: subscribers ----------
+# ---------- subscribers ----------
 
 
 class Subscriber(SQLModel, table=True):
@@ -287,7 +287,7 @@ class SubscriberCreate(SQLModel, table=False):
     email: str = Field(max_length=320, min_length=5)
 
 
-# ---------- trail notes: digest sends ----------
+# ---------- digest sends ----------
 
 
 class SendStatus(str, Enum):

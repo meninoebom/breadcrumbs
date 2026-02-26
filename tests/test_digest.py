@@ -1,4 +1,4 @@
-"""Tests for Trail Notes: digests, subscribers, sending, and cron."""
+"""Tests for weekly digests: digests, subscribers, sending, and cron."""
 
 import secrets
 from datetime import date, datetime, timedelta, timezone
@@ -17,8 +17,8 @@ from app.models import (
     Breadcrumb,
     Visibility,
 )
-from app.trail_notes.generate import gather_week_content, get_current_week_bounds
-from app.trail_notes.send import markdown_to_html
+from app.digest.generate import gather_week_content, get_current_week_bounds
+from app.digest.send import markdown_to_html
 
 
 # ── helpers ──────────────────────────────────────────────────────────
@@ -178,7 +178,7 @@ def test_publish_not_found(client):
 # ── send endpoint ────────────────────────────────────────────────────
 
 
-@patch("app.trail_notes.routes.send_digest_to_subscribers")
+@patch("app.digest.routes.send_digest_to_subscribers")
 def test_send_digest(mock_send, client, session):
     d = _make_digest(session, status=DigestStatus.published)
     session.commit()
@@ -207,7 +207,7 @@ def test_send_already_sent_rejected(client, session):
 # ── send-test endpoint ──────────────────────────────────────────────
 
 
-@patch("app.trail_notes.routes.send_test_email")
+@patch("app.digest.routes.send_test_email")
 def test_send_test_success(mock_send, client, session):
     d = _make_digest(session)
     session.commit()
@@ -220,7 +220,7 @@ def test_send_test_success(mock_send, client, session):
     mock_send.assert_called_once()
 
 
-@patch("app.trail_notes.routes.send_test_email", side_effect=RuntimeError("SMTP down"))
+@patch("app.digest.routes.send_test_email", side_effect=RuntimeError("SMTP down"))
 def test_send_test_failure(mock_send, client, session):
     d = _make_digest(session)
     session.commit()
@@ -234,9 +234,9 @@ def test_send_test_failure(mock_send, client, session):
 # ── send_digest_to_subscribers (unit) ────────────────────────────────
 
 
-@patch("app.trail_notes.send._send_one")
+@patch("app.digest.send._send_one")
 def test_send_to_subscribers_happy_path(mock_send_one, session):
-    from app.trail_notes.send import send_digest_to_subscribers
+    from app.digest.send import send_digest_to_subscribers
 
     d = _make_digest(session, status=DigestStatus.published)
     sub = _make_subscriber(session)
@@ -252,9 +252,9 @@ def test_send_to_subscribers_happy_path(mock_send_one, session):
     assert d.sent_at is not None
 
 
-@patch("app.trail_notes.send._send_one")
+@patch("app.digest.send._send_one")
 def test_send_skips_already_sent(mock_send_one, session):
-    from app.trail_notes.send import send_digest_to_subscribers
+    from app.digest.send import send_digest_to_subscribers
 
     d = _make_digest(session, status=DigestStatus.published)
     sub = _make_subscriber(session)
@@ -273,9 +273,9 @@ def test_send_skips_already_sent(mock_send_one, session):
     mock_send_one.assert_not_called()
 
 
-@patch("app.trail_notes.send._send_one", side_effect=Exception("delivery failed"))
+@patch("app.digest.send._send_one", side_effect=Exception("delivery failed"))
 def test_send_all_fail_leaves_published(mock_send_one, session):
-    from app.trail_notes.send import send_digest_to_subscribers
+    from app.digest.send import send_digest_to_subscribers
 
     d = _make_digest(session, status=DigestStatus.published)
     _make_subscriber(session)
@@ -289,9 +289,9 @@ def test_send_all_fail_leaves_published(mock_send_one, session):
     assert d.status == DigestStatus.published  # NOT sent
 
 
-@patch("app.trail_notes.send._send_one")
+@patch("app.digest.send._send_one")
 def test_send_excludes_unconfirmed_and_unsubscribed(mock_send_one, session):
-    from app.trail_notes.send import send_digest_to_subscribers
+    from app.digest.send import send_digest_to_subscribers
 
     d = _make_digest(session, status=DigestStatus.published)
     _make_subscriber(session, email="unconfirmed@example.com", confirmed=False)
@@ -306,7 +306,7 @@ def test_send_excludes_unconfirmed_and_unsubscribed(mock_send_one, session):
 # ── subscriber endpoints ─────────────────────────────────────────────
 
 
-@patch("app.trail_notes.routes.send_confirmation_email")
+@patch("app.digest.routes.send_confirmation_email")
 def test_subscribe_new_email(mock_email, client):
     resp = client.post(
         "/api/subscribers/subscribe",
@@ -317,7 +317,7 @@ def test_subscribe_new_email(mock_email, client):
     mock_email.assert_called_once()
 
 
-@patch("app.trail_notes.routes.send_confirmation_email")
+@patch("app.digest.routes.send_confirmation_email")
 def test_subscribe_already_active(mock_email, client, session):
     _make_subscriber(session, email="active@example.com", confirmed=True)
     session.commit()
@@ -331,7 +331,7 @@ def test_subscribe_already_active(mock_email, client, session):
     mock_email.assert_not_called()
 
 
-@patch("app.trail_notes.routes.send_confirmation_email")
+@patch("app.digest.routes.send_confirmation_email")
 def test_subscribe_resubscribe_after_unsubscribe(mock_email, client, session):
     _make_subscriber(session, email="back@example.com", confirmed=True, unsubscribed=True)
     session.commit()
@@ -345,7 +345,7 @@ def test_subscribe_resubscribe_after_unsubscribe(mock_email, client, session):
     mock_email.assert_called_once()
 
 
-@patch("app.trail_notes.routes.send_confirmation_email", side_effect=Exception("Resend down"))
+@patch("app.digest.routes.send_confirmation_email", side_effect=Exception("Resend down"))
 def test_subscribe_email_failure_returns_502(mock_email, client):
     resp = client.post(
         "/api/subscribers/subscribe",
@@ -408,8 +408,8 @@ def test_unsubscribe_idempotent(client, session):
 
 
 @patch.dict("os.environ", {"CRON_SECRET": "s3cret"})
-@patch("app.trail_notes.routes.generate_digest")
-@patch("app.trail_notes.routes.get_current_week_bounds", return_value=(date(2026, 2, 17), date(2026, 2, 23)))
+@patch("app.digest.routes.generate_digest")
+@patch("app.digest.routes.get_current_week_bounds", return_value=(date(2026, 2, 17), date(2026, 2, 23)))
 def test_cron_generates_draft(mock_bounds, mock_gen, client, session):
     digest = _make_digest(session)
     session.commit()
@@ -436,7 +436,7 @@ def test_cron_rejects_empty_secret(client):
 # ── generate endpoint ────────────────────────────────────────────────
 
 
-@patch("app.trail_notes.routes.generate_digest")
+@patch("app.digest.routes.generate_digest")
 def test_generate_digest_endpoint(mock_gen, client, session):
     digest = _make_digest(session)
     session.commit()
@@ -446,7 +446,7 @@ def test_generate_digest_endpoint(mock_gen, client, session):
     assert resp.status_code == 201
 
 
-@patch("app.trail_notes.routes.generate_digest")
+@patch("app.digest.routes.generate_digest")
 def test_generate_digest_conflict(mock_gen, client, session):
     _make_digest(session, period_start=date(2026, 2, 17))
     session.commit()

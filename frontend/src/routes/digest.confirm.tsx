@@ -1,23 +1,23 @@
 import { createFileRoute, Link } from "@tanstack/react-router"
 import { useQuery } from "@tanstack/react-query"
 
-export const Route = createFileRoute("/trail-notes/unsubscribe")({
-  component: UnsubscribePage,
+export const Route = createFileRoute("/digest/confirm")({
+  component: ConfirmPage,
   validateSearch: (search: Record<string, unknown>) => ({
     token: typeof search.token === "string" ? search.token : "",
   }),
 })
 
-function UnsubscribePage() {
+function ConfirmPage() {
   const { token } = Route.useSearch()
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["unsubscribe", token],
+    queryKey: ["confirm", token],
     queryFn: async () => {
-      const res = await fetch(`/api/subscribers/unsubscribe?token=${encodeURIComponent(token)}`)
+      const res = await fetch(`/api/subscribers/confirm?token=${encodeURIComponent(token)}`)
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
-        throw new Error(body.detail || "Unsubscribe failed")
+        throw new Error(body.detail || "Confirmation failed")
       }
       return res.json() as Promise<{ message: string }>
     },
@@ -27,7 +27,7 @@ function UnsubscribePage() {
 
   return (
     <div className="max-w-md mx-auto py-16 text-center space-y-4">
-      {isLoading && <p className="text-muted-foreground">Processing...</p>}
+      {isLoading && <p className="text-muted-foreground">Confirming...</p>}
       {error && (
         <p className="text-destructive">
           {error instanceof Error ? error.message : "Something went wrong"}
@@ -35,7 +35,7 @@ function UnsubscribePage() {
       )}
       {data && (
         <>
-          <h1 className="text-xl font-bold">Unsubscribed</h1>
+          <h1 className="text-xl font-bold">You're on the path.</h1>
           <p className="text-sm text-muted-foreground">{data.message}</p>
         </>
       )}

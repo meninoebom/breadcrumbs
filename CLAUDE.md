@@ -251,10 +251,10 @@ tags: List["Tag"] = Relationship(
 **What:** Short AI-generated weekly summaries (2-4 sentences) that appear inline in the main feed, interleaved chronologically with regular breadcrumbs. Think: a journalist doing a capsule recap of the week's themes.
 
 **Architecture:**
-- `app/trail_notes/` — Generation (Claude), email (Resend), sending, API routes
+- `app/digest/` — Generation (Claude), email (Resend), sending, API routes
 - Models: `Digest`, `Subscriber`, `DigestSend` (in `app/models.py`)
 - Frontend: summaries render inline via `WeeklySummary` component in the main feed
-- Confirm/unsubscribe pages: `/trail-notes/confirm`, `/trail-notes/unsubscribe`
+- Confirm/unsubscribe pages: `/digest/confirm`, `/digest/unsubscribe`
 
 **How summaries appear in the feed:**
 - The feed merges date-grouped themes and published digests into one chronological list
@@ -285,7 +285,7 @@ tags: List["Tag"] = Relationship(
 - `UNIQUE(digest_id, subscriber_id)` on digest_send — prevents double-sending
 - Indexes on `confirmation_token` and `unsubscribe_token` for fast lookups
 
-**Generation prompt:** Lives in `app/trail_notes/generate.py`. Short journalist-style recap, third-person perspective. Edit `SYSTEM_PROMPT` to tune.
+**Generation prompt:** Lives in `app/digest/generate.py`. Short journalist-style recap, third-person perspective. Edit `SYSTEM_PROMPT` to tune.
 
 **Future direction:** Monthly and yearly summaries using the same infrastructure. Progressive summarization — weekly summaries become input for monthly, monthly for yearly.
 

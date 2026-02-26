@@ -1,4 +1,4 @@
-"""Digest generation: gather the week's themes + breadcrumbs, ask Claude to write a Trail Note."""
+"""Digest generation: gather the week's themes + breadcrumbs, ask Claude to write a weekly digest."""
 
 import os
 from datetime import date, datetime, timedelta, timezone
@@ -79,7 +79,7 @@ def generate_digest(
     period_start: date,
     period_end: date,
 ) -> Digest:
-    """Generate a Trail Notes digest for the given week using Claude."""
+    """Generate a weekly digest for the given week using Claude."""
     content = gather_week_content(session, period_start, period_end)
 
     if not content:

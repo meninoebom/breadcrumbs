@@ -204,7 +204,7 @@ export function deleteBreadcrumb(
 }
 
 // ---------------------------------------------------------------------------
-// Trail Notes (digests)
+// Weekly digests
 // ---------------------------------------------------------------------------
 
 export function fetchDigests(params?: {
