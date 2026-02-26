@@ -5,6 +5,7 @@ from datetime import date, datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
+from fastapi.testclient import TestClient
 from sqlmodel import select
 
 from app.models import (
@@ -114,6 +115,36 @@ def test_gather_week_content_excludes_drafts(session):
 
     result = gather_week_content(session, date(2026, 2, 17), date(2026, 2, 23))
     assert result == ""
+
+
+# ── admin digest list ────────────────────────────────────────────────
+
+
+def test_admin_list_includes_drafts(client, session):
+    _make_digest(session, status=DigestStatus.draft, period_start=date(2026, 2, 10))
+    _make_digest(session, status=DigestStatus.published, period_start=date(2026, 2, 17))
+    _make_digest(session, status=DigestStatus.sent, period_start=date(2026, 2, 24))
+    session.commit()
+
+    resp = client.get("/api/digests/admin")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 3
+    statuses = {d["status"] for d in data}
+    assert statuses == {"draft", "published", "sent"}
+
+
+def test_admin_list_requires_auth(session):
+    """Unauthenticated requests to /api/digests/admin should be rejected."""
+    from app.api import app
+    from app.db import get_session
+
+    app.dependency_overrides[get_session] = lambda: session
+    # Do NOT override require_admin — auth should block
+    unauthenticated = TestClient(app)
+    resp = unauthenticated.get("/api/digests/admin")
+    assert resp.status_code in (401, 403)
+    app.dependency_overrides.clear()
 
 
 # ── public digest endpoints ──────────────────────────────────────────
