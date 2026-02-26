@@ -1,6 +1,7 @@
 import logging
 import os
 import re
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
 
@@ -30,7 +31,20 @@ from app.models import (
     Visibility,
 )
 
-app = FastAPI(title="Breadcrumbs API")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    if os.getenv("ENABLE_SCHEDULER", "").lower() in ("true", "1"):
+        from app.scheduler import start_scheduler, shutdown_scheduler
+
+        start_scheduler()
+        yield
+        shutdown_scheduler()
+    else:
+        yield
+
+
+app = FastAPI(title="Breadcrumbs API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
