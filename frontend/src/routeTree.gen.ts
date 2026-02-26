@@ -14,8 +14,8 @@ import { Route as AboutRouteImport } from './routes/about'
 import { Route as WriterRouteRouteImport } from './routes/writer/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as WriterIndexRouteImport } from './routes/writer/index'
-import { Route as TrailNotesUnsubscribeRouteImport } from './routes/trail-notes.unsubscribe'
-import { Route as TrailNotesConfirmRouteImport } from './routes/trail-notes.confirm'
+import { Route as DigestUnsubscribeRouteImport } from './routes/digest.unsubscribe'
+import { Route as DigestConfirmRouteImport } from './routes/digest.confirm'
 import { Route as WriterThemesThemeIdRouteImport } from './routes/writer/themes.$themeId'
 import { Route as TagsTagNameThemesRouteImport } from './routes/tags.$tagName.themes'
 
@@ -44,14 +44,14 @@ const WriterIndexRoute = WriterIndexRouteImport.update({
   path: '/',
   getParentRoute: () => WriterRouteRoute,
 } as any)
-const TrailNotesUnsubscribeRoute = TrailNotesUnsubscribeRouteImport.update({
-  id: '/trail-notes/unsubscribe',
-  path: '/trail-notes/unsubscribe',
+const DigestUnsubscribeRoute = DigestUnsubscribeRouteImport.update({
+  id: '/digest/unsubscribe',
+  path: '/digest/unsubscribe',
   getParentRoute: () => rootRouteImport,
 } as any)
-const TrailNotesConfirmRoute = TrailNotesConfirmRouteImport.update({
-  id: '/trail-notes/confirm',
-  path: '/trail-notes/confirm',
+const DigestConfirmRoute = DigestConfirmRouteImport.update({
+  id: '/digest/confirm',
+  path: '/digest/confirm',
   getParentRoute: () => rootRouteImport,
 } as any)
 const WriterThemesThemeIdRoute = WriterThemesThemeIdRouteImport.update({
@@ -70,8 +70,8 @@ export interface FileRoutesByFullPath {
   '/writer': typeof WriterRouteRouteWithChildren
   '/about': typeof AboutRoute
   '/login': typeof LoginRoute
-  '/trail-notes/confirm': typeof TrailNotesConfirmRoute
-  '/trail-notes/unsubscribe': typeof TrailNotesUnsubscribeRoute
+  '/digest/confirm': typeof DigestConfirmRoute
+  '/digest/unsubscribe': typeof DigestUnsubscribeRoute
   '/writer/': typeof WriterIndexRoute
   '/tags/$tagName/themes': typeof TagsTagNameThemesRoute
   '/writer/themes/$themeId': typeof WriterThemesThemeIdRoute
@@ -80,8 +80,8 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/login': typeof LoginRoute
-  '/trail-notes/confirm': typeof TrailNotesConfirmRoute
-  '/trail-notes/unsubscribe': typeof TrailNotesUnsubscribeRoute
+  '/digest/confirm': typeof DigestConfirmRoute
+  '/digest/unsubscribe': typeof DigestUnsubscribeRoute
   '/writer': typeof WriterIndexRoute
   '/tags/$tagName/themes': typeof TagsTagNameThemesRoute
   '/writer/themes/$themeId': typeof WriterThemesThemeIdRoute
@@ -92,8 +92,8 @@ export interface FileRoutesById {
   '/writer': typeof WriterRouteRouteWithChildren
   '/about': typeof AboutRoute
   '/login': typeof LoginRoute
-  '/trail-notes/confirm': typeof TrailNotesConfirmRoute
-  '/trail-notes/unsubscribe': typeof TrailNotesUnsubscribeRoute
+  '/digest/confirm': typeof DigestConfirmRoute
+  '/digest/unsubscribe': typeof DigestUnsubscribeRoute
   '/writer/': typeof WriterIndexRoute
   '/tags/$tagName/themes': typeof TagsTagNameThemesRoute
   '/writer/themes/$themeId': typeof WriterThemesThemeIdRoute
@@ -105,8 +105,8 @@ export interface FileRouteTypes {
     | '/writer'
     | '/about'
     | '/login'
-    | '/trail-notes/confirm'
-    | '/trail-notes/unsubscribe'
+    | '/digest/confirm'
+    | '/digest/unsubscribe'
     | '/writer/'
     | '/tags/$tagName/themes'
     | '/writer/themes/$themeId'
@@ -115,8 +115,8 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/login'
-    | '/trail-notes/confirm'
-    | '/trail-notes/unsubscribe'
+    | '/digest/confirm'
+    | '/digest/unsubscribe'
     | '/writer'
     | '/tags/$tagName/themes'
     | '/writer/themes/$themeId'
@@ -126,8 +126,8 @@ export interface FileRouteTypes {
     | '/writer'
     | '/about'
     | '/login'
-    | '/trail-notes/confirm'
-    | '/trail-notes/unsubscribe'
+    | '/digest/confirm'
+    | '/digest/unsubscribe'
     | '/writer/'
     | '/tags/$tagName/themes'
     | '/writer/themes/$themeId'
@@ -138,8 +138,8 @@ export interface RootRouteChildren {
   WriterRouteRoute: typeof WriterRouteRouteWithChildren
   AboutRoute: typeof AboutRoute
   LoginRoute: typeof LoginRoute
-  TrailNotesConfirmRoute: typeof TrailNotesConfirmRoute
-  TrailNotesUnsubscribeRoute: typeof TrailNotesUnsubscribeRoute
+  DigestConfirmRoute: typeof DigestConfirmRoute
+  DigestUnsubscribeRoute: typeof DigestUnsubscribeRoute
   TagsTagNameThemesRoute: typeof TagsTagNameThemesRoute
 }
 
@@ -180,18 +180,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WriterIndexRouteImport
       parentRoute: typeof WriterRouteRoute
     }
-    '/trail-notes/unsubscribe': {
-      id: '/trail-notes/unsubscribe'
-      path: '/trail-notes/unsubscribe'
-      fullPath: '/trail-notes/unsubscribe'
-      preLoaderRoute: typeof TrailNotesUnsubscribeRouteImport
+    '/digest/unsubscribe': {
+      id: '/digest/unsubscribe'
+      path: '/digest/unsubscribe'
+      fullPath: '/digest/unsubscribe'
+      preLoaderRoute: typeof DigestUnsubscribeRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/trail-notes/confirm': {
-      id: '/trail-notes/confirm'
-      path: '/trail-notes/confirm'
-      fullPath: '/trail-notes/confirm'
-      preLoaderRoute: typeof TrailNotesConfirmRouteImport
+    '/digest/confirm': {
+      id: '/digest/confirm'
+      path: '/digest/confirm'
+      fullPath: '/digest/confirm'
+      preLoaderRoute: typeof DigestConfirmRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/writer/themes/$themeId': {
@@ -230,8 +230,8 @@ const rootRouteChildren: RootRouteChildren = {
   WriterRouteRoute: WriterRouteRouteWithChildren,
   AboutRoute: AboutRoute,
   LoginRoute: LoginRoute,
-  TrailNotesConfirmRoute: TrailNotesConfirmRoute,
-  TrailNotesUnsubscribeRoute: TrailNotesUnsubscribeRoute,
+  DigestConfirmRoute: DigestConfirmRoute,
+  DigestUnsubscribeRoute: DigestUnsubscribeRoute,
   TagsTagNameThemesRoute: TagsTagNameThemesRoute,
 }
 export const routeTree = rootRouteImport

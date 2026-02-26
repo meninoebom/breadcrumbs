@@ -1,4 +1,4 @@
-"""Trail Notes API endpoints for digests and subscribers."""
+"""Weekly digest API endpoints for digests and subscribers."""
 
 import hmac
 import logging
@@ -19,13 +19,13 @@ from app.models import (
     DigestStatus,
     Subscriber,
 )
-from app.trail_notes.email import send_confirmation_email
-from app.trail_notes.generate import generate_digest, get_current_week_bounds
-from app.trail_notes.send import send_digest_to_subscribers, send_test_email
+from app.digest.email import send_confirmation_email
+from app.digest.generate import generate_digest, get_current_week_bounds
+from app.digest.send import send_digest_to_subscribers, send_test_email
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/digests", tags=["trail-notes"])
+router = APIRouter(prefix="/api/digests", tags=["digests"])
 
 
 # ---------- public endpoints ----------
@@ -248,7 +248,7 @@ def confirm_subscription(
         session.add(subscriber)
         session.flush()
 
-    return SubscribeResponse(message="Confirmed! You'll receive the next Trail Note.")
+    return SubscribeResponse(message="Confirmed! You'll receive the next weekly digest.")
 
 
 @subscriber_router.get("/unsubscribe", response_model=SubscribeResponse)

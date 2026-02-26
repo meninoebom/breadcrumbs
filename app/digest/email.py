@@ -1,4 +1,4 @@
-"""Email delivery via Resend for Trail Notes."""
+"""Email delivery via Resend for weekly digests."""
 
 import os
 
@@ -20,7 +20,7 @@ def send_confirmation_email(email: str, token: str) -> None:
     """Send double opt-in confirmation email."""
     _ensure_api_key()
     base = _get_base_url()
-    confirm_url = f"{base}/trail-notes/confirm?token={token}"
+    confirm_url = f"{base}/digest/confirm?token={token}"
 
     resend.Emails.send({
         "from": "crumb.blog <notes@crumb.blog>",
@@ -58,7 +58,7 @@ def send_digest_email(
     """Send a published digest to a confirmed subscriber."""
     _ensure_api_key()
     base = _get_base_url()
-    unsub_url = f"{base}/trail-notes/unsubscribe?token={unsubscribe_token}"
+    unsub_url = f"{base}/digest/unsubscribe?token={unsubscribe_token}"
 
     resend.Emails.send({
         "from": "crumb.blog <notes@crumb.blog>",
