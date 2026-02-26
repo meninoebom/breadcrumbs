@@ -24,10 +24,10 @@ export interface ThemeSearchParams {
   offset?: number
 }
 
-async function apiFetch<T>(url: string, label: string): Promise<T> {
+async function apiFetch<T>(url: string, label: string, headers?: Record<string, string>): Promise<T> {
   let res: Response
   try {
-    res = await fetch(url)
+    res = await fetch(url, headers ? { headers } : undefined)
   } catch (err) {
     throw new Error(
       "Cannot reach the API. Is the backend running? (uv run dev)",
@@ -217,6 +217,32 @@ export function fetchDigests(params?: {
 
 export function fetchDigest(digestId: number): Promise<DigestPublic> {
   return apiFetch(`/api/digests/${digestId}`, "digest")
+}
+
+export function fetchAllDigests(): Promise<DigestPublic[]> {
+  const token = getToken()
+  return apiFetch("/api/digests/admin", "digests (admin)", token ? { Authorization: `Bearer ${token}` } : undefined)
+}
+
+export function generateDigest(): Promise<DigestPublic> {
+  return apiMutate("/api/digests/generate", {
+    method: "POST",
+    label: "generate digest",
+  })
+}
+
+export function publishDigest(digestId: number): Promise<DigestPublic> {
+  return apiMutate(`/api/digests/${digestId}/publish`, {
+    method: "POST",
+    label: "publish digest",
+  })
+}
+
+export function sendDigest(digestId: number): Promise<{ sent: number; failed: number; skipped: number }> {
+  return apiMutate(`/api/digests/${digestId}/send`, {
+    method: "POST",
+    label: "send digest",
+  })
 }
 
 export function subscribe(email: string): Promise<{ message: string }> {

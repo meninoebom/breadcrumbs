@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router"
-import { useQuery } from "@tanstack/react-query"
-import { fetchThemes } from "@/lib/api"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { fetchThemes, fetchAllDigests, generateDigest } from "@/lib/api"
 import { ThemeCard } from "@/components/writer/theme-card"
+import { DigestCard } from "@/components/writer/digest-card"
 
 export const Route = createFileRoute("/writer/")({
   component: WriterDashboard,
@@ -19,22 +20,64 @@ function WriterDashboard() {
     return <p className="text-destructive">Error: {error.message}</p>
   }
 
-  if (!themes || themes.length === 0) {
-    return (
-      <div className="max-w-3xl mx-auto py-12 text-center space-y-2">
-        <p className="text-muted-foreground italic">
-          Your notebook is empty. Start a new theme to begin leaving breadcrumbs.
-        </p>
-      </div>
-    )
-  }
+  return (
+    <div className="max-w-3xl mx-auto space-y-10">
+      {/* Themes */}
+      <section className="grid gap-4">
+        {themes && themes.length > 0 ? (
+          themes.map((theme) => (
+            <ThemeCard key={theme.id} theme={theme} />
+          ))
+        ) : (
+          <p className="text-muted-foreground italic text-center py-8">
+            Your notebook is empty. Start a new theme to begin leaving breadcrumbs.
+          </p>
+        )}
+      </section>
+
+      {/* Digests */}
+      <DigestSection />
+    </div>
+  )
+}
+
+function DigestSection() {
+  const qc = useQueryClient()
+  const { data: digests } = useQuery({
+    queryKey: ["digests", "admin"],
+    queryFn: fetchAllDigests,
+  })
+
+  const generate = useMutation({
+    mutationFn: generateDigest,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["digests"] }),
+  })
 
   return (
-    <div className="max-w-3xl mx-auto grid gap-4">
-      {themes.map((theme) => (
-        <ThemeCard key={theme.id} theme={theme} />
-      ))}
-    </div>
+    <section className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold tracking-tight">Weekly Digests</h2>
+        <button
+          onClick={() => generate.mutate()}
+          disabled={generate.isPending}
+          className="text-sm px-3 py-1.5 rounded-md border hover:bg-muted disabled:opacity-50"
+        >
+          {generate.isPending ? "Generating..." : "Generate Digest"}
+        </button>
+      </div>
+      {generate.isError && (
+        <p className="text-xs text-destructive">{generate.error.message}</p>
+      )}
+      {digests && digests.length > 0 ? (
+        <div className="grid gap-4">
+          {digests.map((d) => (
+            <DigestCard key={d.id} digest={d} />
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground italic">No digests yet.</p>
+      )}
+    </section>
   )
 }
 

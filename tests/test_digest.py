@@ -116,6 +116,23 @@ def test_gather_week_content_excludes_drafts(session):
     assert result == ""
 
 
+# ── admin digest list ────────────────────────────────────────────────
+
+
+def test_admin_list_includes_drafts(client, session):
+    _make_digest(session, status=DigestStatus.draft, period_start=date(2026, 2, 10))
+    _make_digest(session, status=DigestStatus.published, period_start=date(2026, 2, 17))
+    _make_digest(session, status=DigestStatus.sent, period_start=date(2026, 2, 24))
+    session.commit()
+
+    resp = client.get("/api/digests/admin")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 3
+    statuses = {d["status"] for d in data}
+    assert statuses == {"draft", "published", "sent"}
+
+
 # ── public digest endpoints ──────────────────────────────────────────
 
 

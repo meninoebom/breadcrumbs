@@ -28,6 +28,24 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/digests", tags=["digests"])
 
 
+# ---------- admin endpoints (list) ----------
+
+
+@router.get("/admin", response_model=list[DigestPublic])
+def list_all_digests(
+    session: Session = Depends(get_session),
+    _admin: None = Depends(require_admin),
+    limit: int = Query(default=50, ge=1, le=100),
+):
+    """List all digests including drafts (admin only), newest first."""
+    statement = (
+        select(Digest)
+        .order_by(col(Digest.period_start).desc())
+        .limit(limit)
+    )
+    return session.exec(statement).all()
+
+
 # ---------- public endpoints ----------
 
 
