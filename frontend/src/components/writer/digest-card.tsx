@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { publishDigest, sendDigest } from "@/lib/api"
@@ -26,7 +27,12 @@ export function DigestCard({ digest }: { digest: DigestPublic }) {
   })
 
   return (
-    <Card>
+    <Link
+      to="/writer/digests/$digestId"
+      params={{ digestId: String(digest.id) }}
+      className="no-underline"
+    >
+    <Card className="transition-colors hover:border-foreground/20">
       <CardHeader>
         <div className="flex items-start justify-between gap-2">
           <CardTitle className="text-base">{digest.title}</CardTitle>
@@ -47,7 +53,7 @@ export function DigestCard({ digest }: { digest: DigestPublic }) {
           <div className="flex gap-2">
             {digest.status === "draft" && (
               <button
-                onClick={() => publish.mutate()}
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); publish.mutate() }}
                 disabled={publish.isPending}
                 className="text-xs px-3 py-1 rounded-md bg-foreground text-background hover:bg-foreground/90 disabled:opacity-50"
               >
@@ -56,7 +62,7 @@ export function DigestCard({ digest }: { digest: DigestPublic }) {
             )}
             {digest.status === "published" && (
               <button
-                onClick={() => { if (window.confirm("Send this digest to all subscribers?")) send.mutate() }}
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (window.confirm("Send this digest to all subscribers?")) send.mutate() }}
                 disabled={send.isPending}
                 className="text-xs px-3 py-1 rounded-md bg-foreground text-background hover:bg-foreground/90 disabled:opacity-50"
               >
@@ -72,5 +78,6 @@ export function DigestCard({ digest }: { digest: DigestPublic }) {
         )}
       </CardContent>
     </Card>
+    </Link>
   )
 }
