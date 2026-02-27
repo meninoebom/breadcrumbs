@@ -11,6 +11,7 @@
 - **Tag authoring UX** — Chip input with typeahead suggestions, comma/Enter to commit
 - **Agent authoring** — OpenClaw skill for creating content via Telegram (voice or text)
 - **Mobile responsive** — Horizontal tag pill strip, stacked header, touch targets, responsive video embeds
+- **Weekly Digests** — AI-generated weekly summaries interleaved in reader feed, admin digest management in writer dashboard, APScheduler for automated generation (Sunday) and send (Tuesday), email subscriptions with double opt-in, detail drill-down page
 
 ## Up Next
 
@@ -21,31 +22,14 @@ Auto-generate tags when a theme is written. After saving a theme, an AI call sug
 - **4a.** Backend endpoint: `POST /api/themes/{id}/suggest-tags` (auth required)
 - **4b.** Frontend: call suggest-tags after theme creation, pre-fill tag chip input with loading state
 
-### Phase 5: Weekly Summaries
-
-A new content type — AI-generated weekly summaries — that appears inline in the reader stream alongside themes. Designed agent-native so an external agent can create summaries via the API.
-
-- **5a.** `WeeklySummary` model + Alembic migration (title, body_md, week_start, week_end, visibility)
-- **5b.** CRUD endpoints (`/api/summaries`) + context endpoint (`/api/summaries/context`) for agent to gather that week's themes/breadcrumbs
-- **5c.** Frontend: interleave summaries in the reader stream with distinct visual treatment, plus detail route
-
-### Phase 6: Weekly Summary Agent Script
-
-Standalone script that authenticates, fetches the week's context, calls Claude to generate a summary, and creates it as a draft. Run manually at first, wire to Railway cron later.
-
 ### Future
 
-- **Email subscriptions** — subscriber model, email collection UI, unsubscribe
-- **Email delivery** — Resend/Postmark integration, send summary on publish
-- **Cron automation** — Railway cron to trigger weekly summary generation
-- **Summary-to-theme linking** — join table for traceability
-
----
+- **Digest regeneration** — Allow re-generating a draft digest to capture themes added after initial generation
+- **Monthly/yearly summaries** — Progressive summarization using the same digest infrastructure
+- **Summary-to-theme linking** — Join table for traceability
+- **Time-based navigation** — Navigate by year/month when the archive grows large
 
 ### Backlog
-
-#### Time-Based Navigation
-Navigate the stream by time period — jump to a year, then drill into months. Low priority until the archive grows large enough to need it.
 
 #### Always-On Agent
 Run OpenClaw on a VPS or Mac Mini so the Telegram bot works when the laptop is closed. Currently agent only responds when the local machine is awake.

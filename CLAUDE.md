@@ -254,7 +254,9 @@ tags: List["Tag"] = Relationship(
 - `app/digest/` — Generation (Claude), email (Resend), sending, API routes
 - Models: `Digest`, `Subscriber`, `DigestSend` (in `app/models.py`)
 - Frontend: summaries render inline via `WeeklySummary` component in the main feed
+- Writer dashboard: digests interleaved chronologically with themes, clickable detail page at `/writer/digests/$digestId`
 - Confirm/unsubscribe pages: `/digest/confirm`, `/digest/unsubscribe`
+- Scheduler: `app/scheduler.py` — APScheduler `BackgroundScheduler` with two cron jobs
 
 **How summaries appear in the feed:**
 - The feed merges date-grouped themes and published digests into one chronological list
@@ -267,12 +269,17 @@ tags: List["Tag"] = Relationship(
 2. `POST /api/digests/{id}/publish` — Makes it visible in the feed
 3. `POST /api/digests/{id}/send` — (Optional) deliver to email subscribers
 
-**Cron automation:** `POST /api/internal/weekly-digest?secret=X&auto_send=true`
-- Set up as Railway Cron to fire every Monday
-- Idempotent: won't duplicate if fired twice
-- `auto_send=false` (default) creates draft for manual review
-- `auto_send=true` generates, publishes, and sends in one shot
-- Needs `CRON_SECRET` env var set (same value in the cron URL and Railway env)
+**Scheduler (APScheduler):**
+- In-process `BackgroundScheduler` in `app/scheduler.py`, gated behind `ENABLE_SCHEDULER=true`
+- Sunday 6am PT (14:00 UTC): generates a draft digest for the current week
+- Tuesday 6am PT (14:00 UTC): publishes and sends any draft digests
+- Idempotent: checks for existing digest with same `period_start` before generating
+- Each job creates its own `Session(engine)` since it runs outside request context
+- **Known limitation:** generating early in the week then generating again later does NOT update the draft — it skips because one already exists. Regeneration not yet implemented.
+
+**Legacy cron endpoint (still available):** `POST /api/internal/weekly-digest?secret=X&auto_send=true`
+- Needs `CRON_SECRET` env var set
+- Superseded by APScheduler but kept for manual triggering
 
 **Email subscriptions (modular, can be removed):**
 - Subscribe widget at bottom of feed with double opt-in flow
@@ -302,6 +309,7 @@ DATABASE_URL="postgresql://localhost/breadcrumbs_staging" uv run dev
 - `ANTHROPIC_API_KEY` — for Claude generation
 - `RESEND_API_KEY` — for email delivery
 - `CRON_SECRET` — shared secret for cron endpoint authentication
+- `ENABLE_SCHEDULER` — set to `true` to activate APScheduler cron jobs
 - `BASE_URL` — defaults to `https://crumb.blog`, used in email links
 - All set as Railway shared variables, must be "shared" to the web app service
 

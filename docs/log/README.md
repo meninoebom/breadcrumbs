@@ -17,6 +17,7 @@ Each entry captures what was built, what was learned, and the product thinking b
 | [001](001-prototype-worth-a-thousand-meetings.md) | 2026-02-09 | A Prototype Is Worth a Thousand Meetings | Process & Tooling, Product Strategy |
 | [002](002-clay-not-blueprints.md) | 2026-02-09 | Clay, Not Blueprints | Product Strategy, UX Design |
 | [003](003-the-clay-keeps-bending.md) | 2026-02-12 | The Clay Keeps Bending | Product Strategy, Architecture |
+| [004](004-the-digest-loop.md) | 2026-02-26 | The Digest Loop | Architecture, Product Strategy |
 
 ---
 
