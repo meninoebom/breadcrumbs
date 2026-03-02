@@ -36,9 +36,14 @@ export function DigestCard({ digest }: { digest: DigestPublic }) {
       <CardHeader>
         <div className="flex items-start justify-between gap-2">
           <CardTitle className="text-base">{digest.title}</CardTitle>
-          <Badge variant={statusVariant[digest.status] ?? "secondary"}>
-            {digest.status}
-          </Badge>
+          <div className="flex gap-1.5">
+            {digest.digest_type === "monthly" && (
+              <Badge variant="outline">monthly</Badge>
+            )}
+            <Badge variant={statusVariant[digest.status] ?? "secondary"}>
+              {digest.status}
+            </Badge>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">

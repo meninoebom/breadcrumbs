@@ -18,6 +18,7 @@ Each entry captures what was built, what was learned, and the product thinking b
 | [002](002-clay-not-blueprints.md) | 2026-02-09 | Clay, Not Blueprints | Product Strategy, UX Design |
 | [003](003-the-clay-keeps-bending.md) | 2026-02-12 | The Clay Keeps Bending | Product Strategy, Architecture |
 | [004](004-the-digest-loop.md) | 2026-02-26 | The Digest Loop | Architecture, Product Strategy |
+| [005](005-the-hybrid-voice.md) | 2026-02-28 | The Hybrid Voice | Product Strategy, Process & Tooling |
 
 ---
 
@@ -27,7 +28,7 @@ Tracking breadth across the full product-building journey.
 
 | Dimension | Description | Entries |
 |-----------|-------------|---------|
-| Product Strategy | Why build this? User needs, prioritization | 001, 002, 003 |
+| Product Strategy | Why build this? User needs, prioritization | 001, 002, 003, 005 |
 | UX Design | Interaction patterns, user psychology, affordances | 002 |
 | Architecture | System design, data modeling, scaling trade-offs | 003 |
 | Frontend | React/TanStack patterns, state, performance | — |
@@ -35,5 +36,5 @@ Tracking breadth across the full product-building journey.
 | DevOps | CI/CD, deployment, infrastructure, monitoring | — |
 | Security & Privacy | Auth, data protection, threat modeling | — |
 | Testing & Quality | Test strategy, coverage, confidence levels | — |
-| Process & Tooling | Git workflow, AI-assisted dev, planning methods | 001 |
+| Process & Tooling | Git workflow, AI-assisted dev, planning methods | 001, 005 |
 | Business & Growth | Distribution, monetization, metrics, market | — |

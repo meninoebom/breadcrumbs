@@ -203,6 +203,11 @@ class TagWithCount(SQLModel, table=False):
 # ---------- weekly digest ----------
 
 
+class DigestType(str, Enum):
+    weekly = "weekly"
+    monthly = "monthly"
+
+
 class DigestStatus(str, Enum):
     draft = "draft"
     published = "published"
@@ -212,13 +217,14 @@ class DigestStatus(str, Enum):
 class Digest(SQLModel, table=True):
     __tablename__ = "digest"
     __table_args__ = (
-        UniqueConstraint("period_start", name="uq_digest_period_start"),
+        UniqueConstraint("period_start", "digest_type", name="uq_digest_period_start_type"),
     )
     id: Optional[int] = Field(default=None, primary_key=True)
     title: str = Field(description="Digest title / headline")
     summary_md: str = Field(description="Full digest prose in markdown")
-    period_start: date = Field(description="Start of the week this digest covers")
-    period_end: date = Field(description="End of the week this digest covers")
+    digest_type: DigestType = Field(default=DigestType.weekly, description="weekly or monthly")
+    period_start: date = Field(description="Start of the period this digest covers")
+    period_end: date = Field(description="End of the period this digest covers")
     status: DigestStatus = Field(default=DigestStatus.draft)
     sent_at: Optional[datetime] = Field(default=None)
     created_at: datetime = Field(
@@ -242,6 +248,7 @@ class DigestPublic(SQLModel, table=False):
     id: int
     title: str
     summary_md: str
+    digest_type: DigestType = DigestType.weekly
     period_start: date
     period_end: date
     status: DigestStatus

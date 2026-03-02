@@ -12,9 +12,14 @@ from apscheduler.triggers.cron import CronTrigger
 from sqlmodel import Session, col, select
 
 from app.db import engine
-from app.digest.generate import generate_digest, get_current_week_bounds
+from app.digest.generate import (
+    generate_digest,
+    generate_monthly_digest,
+    get_current_month_bounds,
+    get_current_week_bounds,
+)
 from app.digest.send import send_digest_to_subscribers
-from app.models import Digest, DigestStatus
+from app.models import Digest, DigestStatus, DigestType
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +47,31 @@ def scheduled_generate():
         except Exception:
             session.rollback()
             logger.exception("Unexpected error generating digest")
+
+
+def scheduled_monthly_generate():
+    """Generate a draft monthly digest for the most recently completed month."""
+    period_start, period_end = get_current_month_bounds()
+
+    with Session(engine) as session:
+        existing = session.exec(
+            select(Digest)
+            .where(Digest.period_start == period_start)
+            .where(Digest.digest_type == DigestType.monthly)
+        ).first()
+        if existing:
+            logger.info("Monthly digest already exists for %s (id=%d), skipping", period_start, existing.id)
+            return
+
+        try:
+            digest = generate_monthly_digest(session, period_start, period_end)
+            session.commit()
+            logger.info("Generated draft monthly digest id=%d for %s", digest.id, digest.title)
+        except ValueError as e:
+            logger.warning("Monthly digest generation skipped: %s", e)
+        except Exception:
+            session.rollback()
+            logger.exception("Unexpected error generating monthly digest")
 
 
 def scheduled_publish_and_send():
@@ -87,8 +117,14 @@ def start_scheduler():
         id="weekly_digest_send",
         replace_existing=True,
     )
+    scheduler.add_job(
+        scheduled_monthly_generate,
+        CronTrigger(day="1", hour=14, minute=0),
+        id="monthly_digest_generate",
+        replace_existing=True,
+    )
     scheduler.start()
-    logger.info("Scheduler started: generate=Sun 14:00 UTC, send=Tue 14:00 UTC")
+    logger.info("Scheduler started: weekly generate=Sun 14:00, weekly send=Tue 14:00, monthly generate=1st 14:00 UTC")
 
 
 def shutdown_scheduler():

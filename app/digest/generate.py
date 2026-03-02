@@ -1,5 +1,6 @@
-"""Digest generation: gather the week's themes + breadcrumbs, ask Claude to write a weekly digest."""
+"""Digest generation: gather content and ask Claude to write weekly/monthly digests."""
 
+import calendar
 import os
 from datetime import date, datetime, timedelta, timezone
 
@@ -10,6 +11,7 @@ from app.models import (
     Breadcrumb,
     Digest,
     DigestStatus,
+    DigestType,
     Tag,
     Theme,
     Visibility,
@@ -134,3 +136,117 @@ def get_current_week_bounds() -> tuple[date, date]:
     last_sunday = today - timedelta(days=today.isoweekday())
     last_monday = last_sunday - timedelta(days=6)
     return last_monday, last_sunday
+
+
+# ---------- monthly digest ----------
+
+MONTHLY_SYSTEM_PROMPT = """\
+You are writing a monthly summary for Brandon's blog, crumb.blog.
+
+You'll receive the weekly summaries from this month. Your job: synthesize them into \
+a 3-6 sentence monthly recap that identifies the threads connecting the weeks, \
+notes any evolution in thinking, and names the month's dominant mood or direction.
+
+Style: plain, warm, observational. Third-person perspective. Think: a magazine \
+columnist writing a month-in-review column. Slightly more reflective than the \
+weekly recaps — you're looking for patterns and arcs, not just topics.
+
+Rules:
+- 3-6 sentences. More reflective than weekly, but still concise.
+- If there's only 1 weekly summary: 2-3 sentences is fine.
+- If there are 0 weekly summaries: respond with exactly "SKIP" and nothing else.
+- Return ONLY the summary text. No markdown headers, no metadata.
+"""
+
+
+def get_current_month_bounds() -> tuple[date, date]:
+    """Return (first day, last day) of the most recently completed month."""
+    today = date.today()
+    first_of_this_month = today.replace(day=1)
+    last_of_prev_month = first_of_this_month - timedelta(days=1)
+    first_of_prev_month = last_of_prev_month.replace(day=1)
+    return first_of_prev_month, last_of_prev_month
+
+
+def gather_month_content(
+    session: Session,
+    period_start: date,
+    period_end: date,
+) -> str:
+    """Pull published weekly digest summaries for the given month.
+
+    Falls back to raw theme content if no weekly digests exist.
+    """
+    digests = session.exec(
+        select(Digest)
+        .where(Digest.digest_type == DigestType.weekly)
+        .where(Digest.status != DigestStatus.draft)
+        .where(col(Digest.period_start) >= period_start)
+        .where(col(Digest.period_end) <= period_end)
+        .order_by(col(Digest.period_start))
+    ).all()
+
+    if digests:
+        parts = []
+        for d in digests:
+            parts.append(f"## {d.title}\n{d.summary_md}")
+        return "\n\n---\n\n".join(parts)
+
+    # Fallback: use raw content if no weekly digests exist
+    return gather_week_content(session, period_start, period_end)
+
+
+def generate_monthly_digest(
+    session: Session,
+    period_start: date,
+    period_end: date,
+) -> Digest:
+    """Generate a monthly digest using weekly summaries (progressive summarization)."""
+    content = gather_month_content(session, period_start, period_end)
+
+    if not content:
+        raise ValueError("No published content found for this month — skipping digest.")
+
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise ValueError("ANTHROPIC_API_KEY is not set")
+    client = anthropic.Anthropic(api_key=api_key)
+
+    month_name = period_start.strftime("%B %Y")
+
+    try:
+        summary_response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=500,
+            system=MONTHLY_SYSTEM_PROMPT,
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"Here are the weekly summaries from crumb.blog for "
+                    f"{month_name} ({period_start.isoformat()} to {period_end.isoformat()}):"
+                    f"\n\n{content}",
+                }
+            ],
+        )
+    except anthropic.APIError as e:
+        raise ValueError(f"Anthropic API error during monthly digest generation: {e}")
+
+    if not summary_response.content:
+        raise ValueError("Anthropic returned an empty response for monthly digest.")
+    summary_md = summary_response.content[0].text
+
+    if summary_md.strip() == "SKIP":
+        raise ValueError("Claude determined there's not enough content for a monthly digest.")
+
+    digest = Digest(
+        title=month_name,
+        summary_md=summary_md,
+        digest_type=DigestType.monthly,
+        period_start=period_start,
+        period_end=period_end,
+        status=DigestStatus.draft,
+    )
+    session.add(digest)
+    session.flush()
+    session.refresh(digest)
+    return digest

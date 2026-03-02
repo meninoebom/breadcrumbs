@@ -60,11 +60,14 @@ export interface BreadcrumbInput {
   parent_id?: number
 }
 
-/** Weekly digest */
+export type DigestType = "weekly" | "monthly"
+
+/** Digest (weekly or monthly) */
 export interface DigestPublic {
   id: number
   title: string
   summary_md: string
+  digest_type: DigestType
   period_start: string
   period_end: string
   status: "draft" | "published" | "sent"

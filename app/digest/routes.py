@@ -17,10 +17,16 @@ from app.models import (
     Digest,
     DigestPublic,
     DigestStatus,
+    DigestType,
     Subscriber,
 )
 from app.digest.email import send_confirmation_email
-from app.digest.generate import generate_digest, get_current_week_bounds
+from app.digest.generate import (
+    generate_digest,
+    generate_monthly_digest,
+    get_current_month_bounds,
+    get_current_week_bounds,
+)
 from app.digest.send import send_digest_to_subscribers, send_test_email
 
 logger = logging.getLogger(__name__)
@@ -85,25 +91,34 @@ def get_digest(
 def generate_digest_endpoint(
     period_start: date = Query(default=None),
     period_end: date = Query(default=None),
+    digest_type: DigestType = Query(default=DigestType.weekly),
     session: Session = Depends(get_session),
     _admin: None = Depends(require_admin),
 ):
-    """Generate a new digest for the given week (or last week if omitted)."""
+    """Generate a new digest for the given period (or auto-detect if omitted)."""
     if period_start is None or period_end is None:
-        period_start, period_end = get_current_week_bounds()
+        if digest_type == DigestType.monthly:
+            period_start, period_end = get_current_month_bounds()
+        else:
+            period_start, period_end = get_current_week_bounds()
 
-    # Check for existing digest
+    # Check for existing digest of the same type
     existing = session.exec(
-        select(Digest).where(Digest.period_start == period_start)
+        select(Digest)
+        .where(Digest.period_start == period_start)
+        .where(Digest.digest_type == digest_type)
     ).first()
     if existing:
         raise HTTPException(
             status_code=409,
-            detail=f"Digest already exists for week of {period_start.isoformat()} (id={existing.id})",
+            detail=f"{digest_type.value.title()} digest already exists for {period_start.isoformat()} (id={existing.id})",
         )
 
     try:
-        digest = generate_digest(session, period_start, period_end)
+        if digest_type == DigestType.monthly:
+            digest = generate_monthly_digest(session, period_start, period_end)
+        else:
+            digest = generate_digest(session, period_start, period_end)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
