@@ -12,6 +12,7 @@
 - **Agent authoring** — OpenClaw skill for creating content via Telegram (voice or text)
 - **Mobile responsive** — Horizontal tag pill strip, stacked header, touch targets, responsive video embeds
 - **Weekly Digests** — AI-generated weekly summaries interleaved in reader feed, admin digest management in writer dashboard, APScheduler for automated generation (Sunday) and send (Tuesday), email subscriptions with double opt-in, detail drill-down page
+- **Monthly Digests** — Progressive summarization (monthly summaries generated from weekly summaries), DigestType enum (weekly/monthly), scheduler job on 1st of month, AI-generated indicator (sparkles icon) on all summary cards
 
 ## Up Next
 
@@ -25,7 +26,7 @@ Auto-generate tags when a theme is written. After saving a theme, an AI call sug
 ### Future
 
 - **Digest regeneration** — Allow re-generating a draft digest to capture themes added after initial generation
-- **Monthly/yearly summaries** — Progressive summarization using the same digest infrastructure
+- **Yearly summaries** — Progressive summarization from monthly summaries
 - **Summary-to-theme linking** — Join table for traceability
 - **Time-based navigation** — Navigate by year/month when the archive grows large
 
