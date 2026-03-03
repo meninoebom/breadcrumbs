@@ -23,7 +23,7 @@ function formatDigestHeading(digest: DigestPublic): string {
 
 export function WeeklySummary({ digest }: { digest: DigestPublic }) {
   return (
-    <section>
+    <section id={`digest-${digest.id}`}>
       <h2 className="text-lg font-semibold tracking-tight mb-4 text-muted-foreground/70">
         {formatDigestHeading(digest)}
       </h2>
