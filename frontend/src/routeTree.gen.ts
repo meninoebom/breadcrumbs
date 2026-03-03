@@ -14,6 +14,7 @@ import { Route as AboutRouteImport } from './routes/about'
 import { Route as WriterRouteRouteImport } from './routes/writer/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as WriterIndexRouteImport } from './routes/writer/index'
+import { Route as ThemesThemeIdRouteImport } from './routes/themes.$themeId'
 import { Route as DigestUnsubscribeRouteImport } from './routes/digest.unsubscribe'
 import { Route as DigestConfirmRouteImport } from './routes/digest.confirm'
 import { Route as WriterThemesThemeIdRouteImport } from './routes/writer/themes.$themeId'
@@ -44,6 +45,11 @@ const WriterIndexRoute = WriterIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => WriterRouteRoute,
+} as any)
+const ThemesThemeIdRoute = ThemesThemeIdRouteImport.update({
+  id: '/themes/$themeId',
+  path: '/themes/$themeId',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const DigestUnsubscribeRoute = DigestUnsubscribeRouteImport.update({
   id: '/digest/unsubscribe',
@@ -78,6 +84,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/digest/confirm': typeof DigestConfirmRoute
   '/digest/unsubscribe': typeof DigestUnsubscribeRoute
+  '/themes/$themeId': typeof ThemesThemeIdRoute
   '/writer/': typeof WriterIndexRoute
   '/tags/$tagName/themes': typeof TagsTagNameThemesRoute
   '/writer/digests/$digestId': typeof WriterDigestsDigestIdRoute
@@ -89,6 +96,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/digest/confirm': typeof DigestConfirmRoute
   '/digest/unsubscribe': typeof DigestUnsubscribeRoute
+  '/themes/$themeId': typeof ThemesThemeIdRoute
   '/writer': typeof WriterIndexRoute
   '/tags/$tagName/themes': typeof TagsTagNameThemesRoute
   '/writer/digests/$digestId': typeof WriterDigestsDigestIdRoute
@@ -102,6 +110,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/digest/confirm': typeof DigestConfirmRoute
   '/digest/unsubscribe': typeof DigestUnsubscribeRoute
+  '/themes/$themeId': typeof ThemesThemeIdRoute
   '/writer/': typeof WriterIndexRoute
   '/tags/$tagName/themes': typeof TagsTagNameThemesRoute
   '/writer/digests/$digestId': typeof WriterDigestsDigestIdRoute
@@ -116,6 +125,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/digest/confirm'
     | '/digest/unsubscribe'
+    | '/themes/$themeId'
     | '/writer/'
     | '/tags/$tagName/themes'
     | '/writer/digests/$digestId'
@@ -127,6 +137,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/digest/confirm'
     | '/digest/unsubscribe'
+    | '/themes/$themeId'
     | '/writer'
     | '/tags/$tagName/themes'
     | '/writer/digests/$digestId'
@@ -139,6 +150,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/digest/confirm'
     | '/digest/unsubscribe'
+    | '/themes/$themeId'
     | '/writer/'
     | '/tags/$tagName/themes'
     | '/writer/digests/$digestId'
@@ -152,6 +164,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   DigestConfirmRoute: typeof DigestConfirmRoute
   DigestUnsubscribeRoute: typeof DigestUnsubscribeRoute
+  ThemesThemeIdRoute: typeof ThemesThemeIdRoute
   TagsTagNameThemesRoute: typeof TagsTagNameThemesRoute
 }
 
@@ -191,6 +204,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/writer/'
       preLoaderRoute: typeof WriterIndexRouteImport
       parentRoute: typeof WriterRouteRoute
+    }
+    '/themes/$themeId': {
+      id: '/themes/$themeId'
+      path: '/themes/$themeId'
+      fullPath: '/themes/$themeId'
+      preLoaderRoute: typeof ThemesThemeIdRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/digest/unsubscribe': {
       id: '/digest/unsubscribe'
@@ -253,6 +273,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   DigestConfirmRoute: DigestConfirmRoute,
   DigestUnsubscribeRoute: DigestUnsubscribeRoute,
+  ThemesThemeIdRoute: ThemesThemeIdRoute,
   TagsTagNameThemesRoute: TagsTagNameThemesRoute,
 }
 export const routeTree = rootRouteImport
