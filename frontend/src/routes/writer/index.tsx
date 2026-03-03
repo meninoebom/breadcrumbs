@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { fetchThemes, fetchAllDigests, generateDigest } from "@/lib/api"
 import { ThemeCard } from "@/components/writer/theme-card"
 import { DigestCard } from "@/components/writer/digest-card"
-import type { DigestPublic, ThemePublic } from "@/lib/types"
+import type { DigestPublic, DigestType, ThemePublic } from "@/lib/types"
 import { dateKey } from "@/lib/utils"
 
 export const Route = createFileRoute("/writer/")({
@@ -64,9 +64,9 @@ function WriterDashboard() {
     queryFn: fetchAllDigests,
   })
 
-  const [digestType, setDigestType] = useState<"weekly" | "monthly">("weekly")
+  const [digestType, setDigestType] = useState<DigestType>("weekly")
   const generate = useMutation({
-    mutationFn: (type: "weekly" | "monthly") => generateDigest(type),
+    mutationFn: (type: DigestType) => generateDigest(type),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["digests"] }),
   })
 
@@ -86,7 +86,7 @@ function WriterDashboard() {
         <div className="flex items-center gap-1.5">
           <select
             value={digestType}
-            onChange={(e) => setDigestType(e.target.value as "weekly" | "monthly")}
+            onChange={(e) => setDigestType(e.target.value as DigestType)}
             className="text-xs text-muted-foreground bg-transparent border rounded px-1.5 py-1"
           >
             <option value="weekly">weekly</option>

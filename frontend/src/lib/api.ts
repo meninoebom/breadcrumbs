@@ -3,6 +3,7 @@ import type {
   BreadcrumbInput,
   BreadcrumbPublic,
   DigestPublic,
+  DigestType,
   TagWithCount,
   ThemeCreateInput,
   ThemePublic,
@@ -224,7 +225,7 @@ export function fetchAllDigests(): Promise<DigestPublic[]> {
   return apiFetch("/api/digests/admin", "digests (admin)", token ? { Authorization: `Bearer ${token}` } : undefined)
 }
 
-export function generateDigest(digestType: "weekly" | "monthly" = "weekly"): Promise<DigestPublic> {
+export function generateDigest(digestType: DigestType = "weekly"): Promise<DigestPublic> {
   return apiMutate(`/api/digests/generate?digest_type=${digestType}`, {
     method: "POST",
     label: "generate digest",
