@@ -5,6 +5,7 @@ import { ThemeSection } from "@/components/theme-section"
 import { TagBar } from "@/components/tag-bar"
 import { StreamSkeleton } from "@/components/stream-skeleton"
 import { WeeklySummary } from "@/components/weekly-summary"
+import { DigestNav } from "@/components/digest-nav"
 import { fetchDigests, fetchThemes } from "@/lib/api"
 import type { DigestPublic, StreamSearch, ThemePublic } from "@/lib/types"
 import { dateKey, formatDateHeading } from "@/lib/utils"
@@ -85,11 +86,14 @@ function ReaderStream() {
         <TagBar activeTag={tag} horizontal />
       </div>
 
-      <aside className="hidden md:block w-40 shrink-0 sticky top-8 self-start">
-        <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground/60 mb-3">
-          Tags
-        </h3>
-        <TagBar activeTag={tag} />
+      <aside className="hidden md:block w-40 shrink-0 sticky top-8 self-start space-y-6">
+        <div>
+          <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground/60 mb-3">
+            Tags
+          </h3>
+          <TagBar activeTag={tag} />
+        </div>
+        <DigestNav digests={digests ?? []} />
       </aside>
 
       <div className="flex-1 min-w-0 space-y-6">

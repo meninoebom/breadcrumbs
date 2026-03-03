@@ -2,6 +2,7 @@ import { useMemo } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"
 import Markdown from "react-markdown"
+import { LinkIcon } from "lucide-react"
 import { fetchBreadcrumbs } from "@/lib/api"
 import { useScrollReveal } from "@/hooks/use-scroll-reveal"
 import { buildTree, type BreadcrumbNode } from "@/lib/tree"
@@ -28,9 +29,19 @@ export function ThemeSection({ theme }: ThemeSectionProps) {
   )
 
   return (
-    <article className="space-y-3">
-      <div className="prose prose-sm max-w-none">
-        <Markdown>{theme.body_md}</Markdown>
+    <article id={`theme-${theme.id}`} className="group/theme space-y-3">
+      <div className="flex items-start gap-2">
+        <div className="prose prose-sm max-w-none flex-1">
+          <Markdown>{theme.body_md}</Markdown>
+        </div>
+        <Link
+          to="/themes/$themeId"
+          params={{ themeId: String(theme.id) }}
+          className="mt-1 opacity-0 group-hover/theme:opacity-100 transition-opacity text-muted-foreground/40 hover:text-muted-foreground"
+          title="Permalink"
+        >
+          <LinkIcon className="h-3.5 w-3.5" />
+        </Link>
       </div>
 
       {isLoading && <BreadcrumbSkeleton />}
