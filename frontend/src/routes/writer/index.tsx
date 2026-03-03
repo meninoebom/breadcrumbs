@@ -97,7 +97,7 @@ function WriterDashboard() {
             disabled={generate.isPending}
             className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
           >
-            {generate.isPending ? "generating..." : "generate"}
+            {generate.isPending ? "Generating..." : "Generate Digest"}
           </button>
         </div>
       </div>
