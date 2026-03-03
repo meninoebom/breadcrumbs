@@ -297,6 +297,11 @@ function VerticalTagList({
       >
         All
       </Link>
+      {expanded && hasOverflow && !filteredTags && (
+        <ToggleButton onClick={() => setExpanded(false)}>
+          − fewer tags
+        </ToggleButton>
+      )}
       <div className="space-y-1 border-t border-border pt-2">
         {visibleTags.map((tag) => (
           <TagLink

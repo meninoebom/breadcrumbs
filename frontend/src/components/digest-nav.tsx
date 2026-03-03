@@ -21,7 +21,7 @@ export function DigestNav({ digests }: { digests: DigestPublic[] }) {
   return (
     <div>
       <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground/60 mb-3">
-        Digests
+        Monthly Digests
       </h3>
       <nav className="flex flex-col gap-1">
         {monthly.map((digest) => (
