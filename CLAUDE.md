@@ -114,6 +114,8 @@ See `docs/log/README.md` for format and dimensions.
 - **Markdown rendering:** Full markdown support for formatting
 - **Mobile responsive:** Horizontal scrollable tag pills on mobile, stacked header, touch-friendly targets
 - **Agent authoring:** OpenClaw skill enables content creation via Telegram (voice or text input)
+- **Sidebar digest nav:** Monthly digest links in left sidebar smooth-scroll to digest position in feed (desktop only)
+- **Theme permalinks:** Standalone `/themes/$themeId` pages for sharing individual themes, with hover-visible link icon in the feed
 
 ### Key Design Decisions
 - **Visual style:** Reads like one long rant/stream-of-consciousness rather than discrete articles
