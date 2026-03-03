@@ -243,6 +243,11 @@ tags: List["Tag"] = Relationship(
 - Fix: any module that reads env vars at module level should call `load_dotenv()` itself before `os.getenv()`
 - This bit us with `ADMIN_PASSWORD` — login silently failed because the value was empty
 
+**TanStack Router route tree must be committed:**
+- `frontend/src/routeTree.gen.ts` is auto-generated during `vite dev` when route files change
+- Docker builds run `tsc` before `vite build`, so the route tree must be pre-committed
+- If you add a new route file (e.g. `themes.$themeId.tsx`), run `npm run build` locally and commit the updated `routeTree.gen.ts` or the deploy will fail with TS errors
+
 **Testing with SQLite:**
 - SQLite doesn't preserve timezone info on datetime fields
 - Use in-memory database (`:memory:`) for fast, isolated tests
