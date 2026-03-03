@@ -3,6 +3,7 @@ import type { DigestPublic } from "@/lib/types"
 
 function formatMonthLabel(periodStart: string): string {
   const d = new Date(periodStart + "T00:00:00")
+  if (isNaN(d.getTime())) return periodStart
   return new Intl.DateTimeFormat("en-US", { month: "short", year: "numeric" }).format(d)
 }
 
@@ -28,8 +29,11 @@ export function DigestNav({ digests }: { digests: DigestPublic[] }) {
             key={digest.id}
             href={`#digest-${digest.id}`}
             onClick={(e) => {
-              e.preventDefault()
-              document.getElementById(`digest-${digest.id}`)?.scrollIntoView({ behavior: "smooth" })
+              const target = document.getElementById(`digest-${digest.id}`)
+              if (target) {
+                e.preventDefault()
+                target.scrollIntoView({ behavior: "smooth" })
+              }
             }}
             className="text-sm text-muted-foreground/70 hover:text-foreground transition-colors"
           >

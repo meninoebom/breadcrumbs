@@ -8,14 +8,32 @@ export const Route = createFileRoute("/themes/$themeId")({
   component: ThemePermalink,
 })
 
+const BackLink = () => (
+  <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+    <ArrowLeft className="h-3.5 w-3.5" />
+    Back to feed
+  </Link>
+)
+
 function ThemePermalink() {
   const { themeId } = Route.useParams()
   const id = Number(themeId)
+  const isValidId = Number.isInteger(id) && id > 0
 
   const { data: theme, isLoading, error } = useQuery({
     queryKey: ["themes", id],
     queryFn: () => fetchTheme(id),
+    enabled: isValidId,
   })
+
+  if (!isValidId) {
+    return (
+      <div className="max-w-2xl mx-auto space-y-4 py-12 text-center">
+        <p className="text-destructive">This theme link is invalid.</p>
+        <BackLink />
+      </div>
+    )
+  }
 
   if (isLoading) {
     return (
@@ -26,22 +44,22 @@ function ThemePermalink() {
     )
   }
 
-  if (error) {
+  if (error || !theme) {
     return (
-      <div className="max-w-2xl mx-auto text-center py-12">
-        <p className="text-destructive">Failed to load theme.</p>
+      <div className="max-w-2xl mx-auto space-y-4 py-12 text-center">
+        <p className="text-destructive">
+          {error?.message?.includes("404")
+            ? "This theme could not be found."
+            : "Failed to load theme."}
+        </p>
+        <BackLink />
       </div>
     )
   }
 
-  if (!theme) return null
-
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-3.5 w-3.5" />
-        Back to feed
-      </Link>
+      <BackLink />
       <ThemeSection theme={theme} />
     </div>
   )
