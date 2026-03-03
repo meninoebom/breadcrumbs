@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { createFileRoute } from "@tanstack/react-router"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { fetchThemes, fetchAllDigests, generateDigest } from "@/lib/api"
@@ -63,8 +64,9 @@ function WriterDashboard() {
     queryFn: fetchAllDigests,
   })
 
+  const [digestType, setDigestType] = useState<"weekly" | "monthly">("weekly")
   const generate = useMutation({
-    mutationFn: generateDigest,
+    mutationFn: (type: "weekly" | "monthly") => generateDigest(type),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["digests"] }),
   })
 
@@ -81,13 +83,23 @@ function WriterDashboard() {
     <div className="max-w-3xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold tracking-tight">Dashboard</h2>
-        <button
-          onClick={() => generate.mutate()}
-          disabled={generate.isPending}
-          className="text-sm px-3 py-1.5 rounded-md border hover:bg-muted disabled:opacity-50"
-        >
-          {generate.isPending ? "Generating..." : "Generate Digest"}
-        </button>
+        <div className="flex items-center gap-1.5">
+          <select
+            value={digestType}
+            onChange={(e) => setDigestType(e.target.value as "weekly" | "monthly")}
+            className="text-xs text-muted-foreground bg-transparent border rounded px-1.5 py-1"
+          >
+            <option value="weekly">weekly</option>
+            <option value="monthly">monthly</option>
+          </select>
+          <button
+            onClick={() => generate.mutate(digestType)}
+            disabled={generate.isPending}
+            className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+          >
+            {generate.isPending ? "generating..." : "generate"}
+          </button>
+        </div>
       </div>
       {generate.isError && (
         <p className="text-xs text-destructive">{generate.error.message}</p>

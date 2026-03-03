@@ -75,32 +75,33 @@ def scheduled_monthly_generate():
 
 
 def scheduled_publish_and_send():
-    """Publish the most recent draft digest and send to subscribers."""
+    """Publish all draft digests and send to subscribers."""
     with Session(engine) as session:
-        digest = session.exec(
+        drafts = session.exec(
             select(Digest)
             .where(Digest.status == DigestStatus.draft)
-            .order_by(col(Digest.period_start).desc())
-        ).first()
+            .order_by(col(Digest.period_start).asc())
+        ).all()
 
-        if not digest:
-            logger.info("No draft digest to publish, skipping")
+        if not drafts:
+            logger.info("No draft digests to publish, skipping")
             return
 
-        try:
-            digest.status = DigestStatus.published
-            session.add(digest)
-            session.flush()
+        for digest in drafts:
+            try:
+                digest.status = DigestStatus.published
+                session.add(digest)
+                session.flush()
 
-            result = send_digest_to_subscribers(session, digest)
-            session.commit()
-            logger.info(
-                "Published and sent digest id=%d: sent=%d, failed=%d, skipped=%d",
-                digest.id, result["sent"], result["failed"], result["skipped"],
-            )
-        except Exception:
-            session.rollback()
-            logger.exception("Unexpected error publishing/sending digest id=%d", digest.id)
+                result = send_digest_to_subscribers(session, digest)
+                session.commit()
+                logger.info(
+                    "Published and sent digest id=%d: sent=%d, failed=%d, skipped=%d",
+                    digest.id, result["sent"], result["failed"], result["skipped"],
+                )
+            except Exception:
+                session.rollback()
+                logger.exception("Unexpected error publishing/sending digest id=%d", digest.id)
 
 
 def start_scheduler():
