@@ -10,6 +10,7 @@ load_dotenv()
 
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
 JWT_SECRET = os.getenv("JWT_SECRET", "")
+API_KEY = os.getenv("API_KEY", "")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = 24 * 30
 
@@ -26,7 +27,17 @@ def create_access_token() -> str:
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
-def require_admin(authorization: str = Header(None)) -> None:
+def require_admin(
+    authorization: str = Header(None),
+    x_api_key: str = Header(None),
+) -> None:
+    # API key auth (for machine clients like NanoClaw)
+    if x_api_key:
+        if API_KEY and hmac.compare_digest(x_api_key.encode(), API_KEY.encode()):
+            return
+        raise HTTPException(status_code=401, detail="Invalid API key")
+
+    # JWT Bearer auth (for browser sessions)
     if not authorization:
         raise HTTPException(status_code=401, detail="Missing Authorization header")
 
