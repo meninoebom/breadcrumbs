@@ -173,6 +173,7 @@ function BrowseTagSections({
               key={tag.id}
               tag={tag}
               isActive={activeTag === tag.name}
+              showCount
               onClick={onSelect}
             />
           ))}
