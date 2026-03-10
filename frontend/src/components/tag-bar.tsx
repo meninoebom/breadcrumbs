@@ -9,6 +9,26 @@ import { TagSheet } from "@/components/tag-sheet"
 
 const VISIBLE_COUNT = 15
 const MOBILE_VISIBLE_COUNT = 12
+const SORT_STORAGE_KEY = "breadcrumbs-tag-sort"
+
+type TagSortOrder = "usage" | "alpha"
+
+function getStoredSort(): TagSortOrder {
+  try {
+    const v = localStorage.getItem(SORT_STORAGE_KEY)
+    return v === "alpha" ? "alpha" : "usage"
+  } catch {
+    return "usage"
+  }
+}
+
+function storeSort(order: TagSortOrder) {
+  try {
+    localStorage.setItem(SORT_STORAGE_KEY, order)
+  } catch {
+    // ignore
+  }
+}
 
 interface TagBarProps {
   activeTag?: string
@@ -40,6 +60,8 @@ function getUsageTier(count: number, maxCount: number): number {
 }
 
 export function TagBar({ activeTag, horizontal = false }: TagBarProps) {
+  const [sortOrder, setSortOrder] = useState<TagSortOrder>(getStoredSort)
+
   const { data: tags, error } = useQuery({
     queryKey: ["tags"],
     queryFn: fetchTags,
@@ -47,19 +69,24 @@ export function TagBar({ activeTag, horizontal = false }: TagBarProps) {
 
   const sortedTags = useMemo(
     () =>
-      tags
-        ?.slice()
-        .sort(
-          (a, b) =>
-            b.theme_count - a.theme_count || a.name.localeCompare(b.name),
-        ),
-    [tags],
+      tags?.slice().sort(
+        sortOrder === "usage"
+          ? (a, b) => b.theme_count - a.theme_count || a.name.localeCompare(b.name)
+          : (a, b) => a.name.localeCompare(b.name),
+      ),
+    [tags, sortOrder],
   )
 
   const maxCount = useMemo(
     () => sortedTags?.reduce((max, t) => Math.max(max, t.theme_count), 0) ?? 0,
     [sortedTags],
   )
+
+  function toggleSort() {
+    const next = sortOrder === "usage" ? "alpha" : "usage"
+    setSortOrder(next)
+    storeSort(next)
+  }
 
   if (error) {
     console.error("Failed to load tags:", error.message)
@@ -90,6 +117,8 @@ export function TagBar({ activeTag, horizontal = false }: TagBarProps) {
       sortedTags={sortedTags}
       maxCount={maxCount}
       activeTag={activeTag}
+      sortOrder={sortOrder}
+      onToggleSort={toggleSort}
     />
   )
 }
@@ -115,6 +144,7 @@ function TagPill({
       )}
     >
       {tag.name}
+      <span className="text-[10px] opacity-50 ml-1">{tag.theme_count}</span>
     </Link>
   )
 }
@@ -203,11 +233,14 @@ function TagLink({
       aria-label={`${tag.name}, ${tag.theme_count} ${tag.theme_count === 1 ? "theme" : "themes"}`}
       aria-current={isActive ? "page" : undefined}
       className={cn(
-        "block truncate py-0.5 no-underline hover:text-foreground transition-colors",
+        "flex items-center justify-between py-0.5 no-underline hover:text-foreground transition-colors",
         isActive ? "text-foreground font-medium" : USAGE_TIER_CLASSES[tier],
       )}
     >
-      {tag.name}
+      <span className="truncate">{tag.name}</span>
+      <span className="text-xs text-muted-foreground/50 ml-2 shrink-0 tabular-nums">
+        {tag.theme_count}
+      </span>
     </Link>
   )
 }
@@ -230,14 +263,37 @@ function ToggleButton({
   )
 }
 
+function SortToggle({
+  sortOrder,
+  onToggle,
+}: {
+  sortOrder: TagSortOrder
+  onToggle: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className="text-[11px] text-muted-foreground/50 hover:text-muted-foreground cursor-pointer transition-colors"
+      title={sortOrder === "usage" ? "Switch to alphabetical" : "Switch to by usage"}
+    >
+      {sortOrder === "usage" ? "A→Z" : "# usage"}
+    </button>
+  )
+}
+
 function VerticalTagList({
   sortedTags,
   maxCount,
   activeTag,
+  sortOrder,
+  onToggleSort,
 }: {
   sortedTags: TagWithCount[]
   maxCount: number
   activeTag?: string
+  sortOrder: TagSortOrder
+  onToggleSort: () => void
 }) {
   const [expanded, setExpanded] = useState(false)
   const [filter, setFilter] = useState("")
@@ -284,19 +340,22 @@ function VerticalTagList({
           }}
         />
       )}
-      <Link
-        to="/"
-        search={(prev: StreamSearch) => ({ q: prev.q })}
-        aria-current={!activeTag ? "page" : undefined}
-        className={cn(
-          "block py-0.5 mb-2 no-underline hover:text-foreground transition-colors",
-          !activeTag
-            ? "text-foreground font-medium"
-            : "text-muted-foreground",
-        )}
-      >
-        All
-      </Link>
+      <div className="flex items-center justify-between mb-2">
+        <Link
+          to="/"
+          search={(prev: StreamSearch) => ({ q: prev.q })}
+          aria-current={!activeTag ? "page" : undefined}
+          className={cn(
+            "block py-0.5 no-underline hover:text-foreground transition-colors",
+            !activeTag
+              ? "text-foreground font-medium"
+              : "text-muted-foreground",
+          )}
+        >
+          All
+        </Link>
+        <SortToggle sortOrder={sortOrder} onToggle={onToggleSort} />
+      </div>
       {expanded && hasOverflow && !filteredTags && (
         <ToggleButton onClick={() => setExpanded(false)}>
           − fewer tags
