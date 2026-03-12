@@ -22,11 +22,12 @@ def send_confirmation_email(email: str, token: str) -> None:
     base = _get_base_url()
     confirm_url = f"{base}/digest/confirm?token={token}"
 
-    resend.Emails.send({
-        "from": "crumb.blog <notes@crumb.blog>",
-        "to": [email],
-        "subject": "Confirm your subscription",
-        "html": f"""\
+    resend.Emails.send(
+        {
+            "from": "crumb.blog <notes@crumb.blog>",
+            "to": [email],
+            "subject": "Confirm your subscription",
+            "html": f"""\
 <div style="font-family: Georgia, serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
   <p style="font-size: 16px; line-height: 1.6; color: #1a1a1a;">
     Someone (hopefully you) asked to receive weekly summaries
@@ -45,7 +46,8 @@ def send_confirmation_email(email: str, token: str) -> None:
     If you didn't request this, just ignore this email. No harm done.
   </p>
 </div>""",
-    })
+        }
+    )
 
 
 def send_digest_email(
@@ -60,11 +62,12 @@ def send_digest_email(
     base = _get_base_url()
     unsub_url = f"{base}/digest/unsubscribe?token={unsubscribe_token}"
 
-    resend.Emails.send({
-        "from": "crumb.blog <notes@crumb.blog>",
-        "to": [email],
-        "subject": f"Weekly summary: {digest_title}",
-        "html": f"""\
+    resend.Emails.send(
+        {
+            "from": "crumb.blog <notes@crumb.blog>",
+            "to": [email],
+            "subject": f"Weekly summary: {digest_title}",
+            "html": f"""\
 <div style="font-family: Georgia, serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
   <p style="font-size: 16px; line-height: 1.6; color: #1a1a1a;">
     {digest_html}
@@ -79,4 +82,5 @@ def send_digest_email(
     <a href="{unsub_url}" style="color: #999;">Unsubscribe</a>
   </p>
 </div>""",
-    })
+        }
+    )

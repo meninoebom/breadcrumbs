@@ -44,11 +44,7 @@ def list_all_digests(
     limit: int = Query(default=50, ge=1, le=100),
 ):
     """List all digests including drafts (admin only), newest first."""
-    statement = (
-        select(Digest)
-        .order_by(col(Digest.period_start).desc())
-        .limit(limit)
-    )
+    statement = select(Digest).order_by(col(Digest.period_start).desc()).limit(limit)
     return session.exec(statement).all()
 
 
@@ -136,7 +132,9 @@ def publish_digest(
     if not digest:
         raise HTTPException(status_code=404, detail="Digest not found")
     if digest.status != DigestStatus.draft:
-        raise HTTPException(status_code=400, detail=f"Digest is already {digest.status.value}")
+        raise HTTPException(
+            status_code=400, detail=f"Digest is already {digest.status.value}"
+        )
 
     digest.status = DigestStatus.published
     session.add(digest)
@@ -162,7 +160,9 @@ def send_digest_endpoint(
     if not digest:
         raise HTTPException(status_code=404, detail="Digest not found")
     if digest.status == DigestStatus.draft:
-        raise HTTPException(status_code=400, detail="Publish the digest before sending.")
+        raise HTTPException(
+            status_code=400, detail="Publish the digest before sending."
+        )
     if digest.status == DigestStatus.sent:
         raise HTTPException(status_code=400, detail="Digest has already been sent.")
 
@@ -216,9 +216,7 @@ def subscribe(
     """Subscribe an email. Sends confirmation link (double opt-in)."""
     email = req.email.lower().strip()
 
-    existing = session.exec(
-        select(Subscriber).where(Subscriber.email == email)
-    ).first()
+    existing = session.exec(select(Subscriber).where(Subscriber.email == email)).first()
 
     if existing:
         if existing.is_active:
@@ -232,7 +230,10 @@ def subscribe(
                 send_confirmation_email(email, new_token)
             except Exception:
                 logger.error("Failed to send confirmation to %s", email, exc_info=True)
-                raise HTTPException(status_code=502, detail="Could not send confirmation email. Please try again.")
+                raise HTTPException(
+                    status_code=502,
+                    detail="Could not send confirmation email. Please try again.",
+                )
             existing.unsubscribed_at = None
             existing.confirmed_at = None
             existing.confirmation_token = new_token
@@ -244,7 +245,10 @@ def subscribe(
             send_confirmation_email(email, existing.confirmation_token)
         except Exception:
             logger.error("Failed to resend confirmation to %s", email, exc_info=True)
-            raise HTTPException(status_code=502, detail="Could not send confirmation email. Please try again.")
+            raise HTTPException(
+                status_code=502,
+                detail="Could not send confirmation email. Please try again.",
+            )
         return SubscribeResponse(message="Check your inbox.")
 
     subscriber = Subscriber(
@@ -259,7 +263,10 @@ def subscribe(
         send_confirmation_email(email, subscriber.confirmation_token)
     except Exception:
         logger.error("Failed to send confirmation to %s", email, exc_info=True)
-        raise HTTPException(status_code=502, detail="Could not send confirmation email. Please try again.")
+        raise HTTPException(
+            status_code=502,
+            detail="Could not send confirmation email. Please try again.",
+        )
     return SubscribeResponse(message="Check your inbox.")
 
 
@@ -274,14 +281,18 @@ def confirm_subscription(
     ).first()
 
     if not subscriber:
-        raise HTTPException(status_code=404, detail="Invalid or expired confirmation link.")
+        raise HTTPException(
+            status_code=404, detail="Invalid or expired confirmation link."
+        )
 
     if not subscriber.is_confirmed:
         subscriber.confirmed_at = datetime.now(timezone.utc)
         session.add(subscriber)
         session.flush()
 
-    return SubscribeResponse(message="Confirmed! You'll receive the next weekly digest.")
+    return SubscribeResponse(
+        message="Confirmed! You'll receive the next weekly digest."
+    )
 
 
 @subscriber_router.get("/unsubscribe", response_model=SubscribeResponse)
@@ -340,7 +351,9 @@ def cron_weekly_digest(
     ).first()
 
     if existing:
-        return CronResponse(digest=DigestPublic.model_validate(existing), action="existed")
+        return CronResponse(
+            digest=DigestPublic.model_validate(existing), action="existed"
+        )
 
     try:
         digest = generate_digest(session, period_start, period_end)
@@ -349,7 +362,9 @@ def cron_weekly_digest(
         raise HTTPException(status_code=422, detail=str(e))
 
     if not auto_send:
-        return CronResponse(digest=DigestPublic.model_validate(digest), action="created")
+        return CronResponse(
+            digest=DigestPublic.model_validate(digest), action="created"
+        )
 
     # Auto-publish and send
     digest.status = DigestStatus.published

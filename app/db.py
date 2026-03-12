@@ -26,6 +26,7 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
 
     dbapi_connection.autocommit = ac
 
+
 load_dotenv()
 
 

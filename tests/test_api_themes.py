@@ -1,6 +1,6 @@
 """API tests for theme endpoints."""
 
-from app.models import Breadcrumb, Tag, Theme, Visibility
+from app.models import Breadcrumb, Tag
 
 
 # ---------- POST /themes ----------
@@ -82,7 +82,8 @@ def test_list_themes_filter_by_visibility(client):
         "/api/themes", json={"body_md": "A draft thought", "visibility": "draft"}
     )
     client.post(
-        "/api/themes", json={"body_md": "A published thought", "visibility": "published"}
+        "/api/themes",
+        json={"body_md": "A published thought", "visibility": "published"},
     )
     response = client.get("/api/themes", params={"visibility": "published"})
     assert response.status_code == 200
@@ -195,9 +196,7 @@ def test_update_theme_visibility(client):
     theme_id = r.json()["id"]
     assert r.json()["visibility"] == "draft"
 
-    response = client.put(
-        f"/api/themes/{theme_id}", json={"visibility": "published"}
-    )
+    response = client.put(f"/api/themes/{theme_id}", json={"visibility": "published"})
     assert response.status_code == 200
     assert response.json()["visibility"] == "published"
 

@@ -1,0 +1,5 @@
+cd frontend && npx lint-staged
+
+cd ..
+uv run ruff check app/ tests/
+uv run ruff format --check app/ tests/

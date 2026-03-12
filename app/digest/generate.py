@@ -1,6 +1,5 @@
 """Digest generation: gather content and ask Claude to write weekly/monthly digests."""
 
-import calendar
 import os
 from datetime import date, datetime, timedelta, timezone
 
@@ -12,7 +11,6 @@ from app.models import (
     Digest,
     DigestStatus,
     DigestType,
-    Tag,
     Theme,
     Visibility,
 )
@@ -85,7 +83,9 @@ def generate_digest(
     content = gather_week_content(session, period_start, period_end)
 
     if not content:
-        raise ValueError("No published content found for this period — skipping digest.")
+        raise ValueError(
+            "No published content found for this period — skipping digest."
+        )
 
     api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
@@ -114,7 +114,9 @@ def generate_digest(
     summary_md = summary_response.content[0].text
 
     if summary_md.strip() == "SKIP":
-        raise ValueError("Claude determined there's not enough content for a digest this week.")
+        raise ValueError(
+            "Claude determined there's not enough content for a digest this week."
+        )
 
     digest = Digest(
         title=f"Week of {period_start.isoformat()}",
@@ -236,7 +238,9 @@ def generate_monthly_digest(
     summary_md = summary_response.content[0].text
 
     if summary_md.strip() == "SKIP":
-        raise ValueError("Claude determined there's not enough content for a monthly digest.")
+        raise ValueError(
+            "Claude determined there's not enough content for a monthly digest."
+        )
 
     digest = Digest(
         title=month_name,

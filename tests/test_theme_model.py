@@ -1,4 +1,5 @@
 """Tests for the Theme model."""
+
 from datetime import datetime, timezone
 import pytest
 from sqlmodel import Session, select

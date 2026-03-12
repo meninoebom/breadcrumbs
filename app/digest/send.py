@@ -113,7 +113,8 @@ def send_digest_to_subscribers(session: Session, digest: Digest) -> dict:
     elif failed > 0:
         logger.error(
             "Digest %d: all %d sends failed, leaving as published for retry",
-            digest.id, failed,
+            digest.id,
+            failed,
         )
 
     return {"sent": sent, "failed": failed, "skipped": skipped}

@@ -1,10 +1,11 @@
 """Tests for the Breadcrumb model."""
+
 from datetime import datetime, timezone
 import pytest
 from sqlmodel import Session, select
 from sqlalchemy.exc import IntegrityError
 
-from app.models import Breadcrumb, Theme, Visibility
+from app.models import Breadcrumb, Theme
 
 
 def test_breadcrumb_create_with_theme(session: Session):
@@ -111,7 +112,7 @@ def test_breadcrumb_str_representation(session: Session):
 
     breadcrumb = Breadcrumb(
         body_md="This is a longer breadcrumb body for testing string representation",
-        theme_id=theme.id
+        theme_id=theme.id,
     )
     session.add(breadcrumb)
     session.commit()

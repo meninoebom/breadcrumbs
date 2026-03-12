@@ -102,8 +102,7 @@ class Breadcrumb(BreadcrumbBase, table=True):
     # Foreign key to theme (required)
     theme_id: int = Field(foreign_key="theme.id", ondelete="CASCADE")
     theme: "Theme" = Relationship(
-        back_populates="breadcrumbs",
-        sa_relationship_kwargs={"lazy": "selectin"}
+        back_populates="breadcrumbs", sa_relationship_kwargs={"lazy": "selectin"}
     )
 
     # Optional parent breadcrumb (self-referential, adjacency list pattern)
@@ -134,6 +133,7 @@ class Breadcrumb(BreadcrumbBase, table=True):
 
 class BreadcrumbCreateInput(SQLModel, table=False):
     """Request body for POST /themes/{theme_id}/breadcrumbs."""
+
     body_md: str = Field(min_length=1, description="Markdown content of the breadcrumb")
     parent_id: Optional[int] = Field(
         default=None, ge=1, description="Optional parent breadcrumb ID"
@@ -148,9 +148,7 @@ class BreadcrumbPublic(BreadcrumbBase, table=False):
 
 # ---------- tags ----------
 class TagBase(SQLModel, table=False):
-    name: str = Field(
-        min_length=1, max_length=50, description="Name of the tag"
-    )
+    name: str = Field(min_length=1, max_length=50, description="Name of the tag")
 
     @field_validator("name", mode="before")
     @classmethod
@@ -217,12 +215,16 @@ class DigestStatus(str, Enum):
 class Digest(SQLModel, table=True):
     __tablename__ = "digest"
     __table_args__ = (
-        UniqueConstraint("period_start", "digest_type", name="uq_digest_period_start_type"),
+        UniqueConstraint(
+            "period_start", "digest_type", name="uq_digest_period_start_type"
+        ),
     )
     id: Optional[int] = Field(default=None, primary_key=True)
     title: str = Field(description="Digest title / headline")
     summary_md: str = Field(description="Full digest prose in markdown")
-    digest_type: DigestType = Field(default=DigestType.weekly, description="weekly or monthly")
+    digest_type: DigestType = Field(
+        default=DigestType.weekly, description="weekly or monthly"
+    )
     period_start: date = Field(description="Start of the period this digest covers")
     period_end: date = Field(description="End of the period this digest covers")
     status: DigestStatus = Field(default=DigestStatus.draft)
@@ -268,9 +270,7 @@ class DigestCreate(SQLModel, table=False):
 
 class Subscriber(SQLModel, table=True):
     __tablename__ = "subscriber"
-    __table_args__ = (
-        UniqueConstraint("email", name="uq_subscriber_email"),
-    )
+    __table_args__ = (UniqueConstraint("email", name="uq_subscriber_email"),)
     id: Optional[int] = Field(default=None, primary_key=True)
     email: str = Field(max_length=320, description="Subscriber email address")
     confirmation_token: str = Field(max_length=128, index=True)
@@ -306,7 +306,9 @@ class SendStatus(str, Enum):
 class DigestSend(SQLModel, table=True):
     __tablename__ = "digest_send"
     __table_args__ = (
-        UniqueConstraint("digest_id", "subscriber_id", name="uq_digest_send_digest_subscriber"),
+        UniqueConstraint(
+            "digest_id", "subscriber_id", name="uq_digest_send_digest_subscriber"
+        ),
     )
     id: Optional[int] = Field(default=None, primary_key=True)
     digest_id: int = Field(foreign_key="digest.id", ondelete="CASCADE")

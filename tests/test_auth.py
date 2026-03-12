@@ -6,7 +6,6 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session, SQLModel, create_engine
 from sqlmodel.pool import StaticPool
 
-from app.models import Breadcrumb, Digest, DigestSend, Subscriber, Tag, Theme, ThemeTag
 from app.api import app
 from app.db import get_session
 

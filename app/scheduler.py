@@ -35,13 +35,19 @@ def scheduled_generate():
             select(Digest).where(Digest.period_start == period_start)
         ).first()
         if existing:
-            logger.info("Digest already exists for week of %s (id=%d), skipping", period_start, existing.id)
+            logger.info(
+                "Digest already exists for week of %s (id=%d), skipping",
+                period_start,
+                existing.id,
+            )
             return
 
         try:
             digest = generate_digest(session, period_start, period_end)
             session.commit()
-            logger.info("Generated draft digest id=%d for week of %s", digest.id, period_start)
+            logger.info(
+                "Generated draft digest id=%d for week of %s", digest.id, period_start
+            )
         except ValueError as e:
             logger.warning("Digest generation skipped: %s", e)
         except Exception:
@@ -60,13 +66,19 @@ def scheduled_monthly_generate():
             .where(Digest.digest_type == DigestType.monthly)
         ).first()
         if existing:
-            logger.info("Monthly digest already exists for %s (id=%d), skipping", period_start, existing.id)
+            logger.info(
+                "Monthly digest already exists for %s (id=%d), skipping",
+                period_start,
+                existing.id,
+            )
             return
 
         try:
             digest = generate_monthly_digest(session, period_start, period_end)
             session.commit()
-            logger.info("Generated draft monthly digest id=%d for %s", digest.id, digest.title)
+            logger.info(
+                "Generated draft monthly digest id=%d for %s", digest.id, digest.title
+            )
         except ValueError as e:
             logger.warning("Monthly digest generation skipped: %s", e)
         except Exception:
@@ -97,11 +109,16 @@ def scheduled_publish_and_send():
                 session.commit()
                 logger.info(
                     "Published and sent digest id=%d: sent=%d, failed=%d, skipped=%d",
-                    digest.id, result["sent"], result["failed"], result["skipped"],
+                    digest.id,
+                    result["sent"],
+                    result["failed"],
+                    result["skipped"],
                 )
             except Exception:
                 session.rollback()
-                logger.exception("Unexpected error publishing/sending digest id=%d", digest.id)
+                logger.exception(
+                    "Unexpected error publishing/sending digest id=%d", digest.id
+                )
 
 
 def start_scheduler():
@@ -125,7 +142,9 @@ def start_scheduler():
         replace_existing=True,
     )
     scheduler.start()
-    logger.info("Scheduler started: weekly generate=Sun 14:00, weekly send=Tue 14:00, monthly generate=1st 14:00 UTC")
+    logger.info(
+        "Scheduler started: weekly generate=Sun 14:00, weekly send=Tue 14:00, monthly generate=1st 14:00 UTC"
+    )
 
 
 def shutdown_scheduler():

@@ -48,7 +48,9 @@ app = FastAPI(title="Breadcrumbs API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:5174").split(","),
+    allow_origins=os.getenv(
+        "CORS_ORIGINS", "http://localhost:5173,http://localhost:5174"
+    ).split(","),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -62,13 +64,18 @@ logger = logging.getLogger(__name__)
 @app.exception_handler(IntegrityError)
 def integrity_error_handler(request: Request, exc: IntegrityError):
     logger.error("IntegrityError: %s", exc)
-    return JSONResponse(status_code=409, content={"detail": "Conflict: a database constraint was violated"})
+    return JSONResponse(
+        status_code=409,
+        content={"detail": "Conflict: a database constraint was violated"},
+    )
 
 
 @app.exception_handler(OperationalError)
 def operational_error_handler(request: Request, exc: OperationalError):
     logger.error("OperationalError: %s", exc)
-    return JSONResponse(status_code=503, content={"detail": "Service temporarily unavailable"})
+    return JSONResponse(
+        status_code=503, content={"detail": "Service temporarily unavailable"}
+    )
 
 
 @app.exception_handler(DataError)
@@ -262,9 +269,7 @@ def create_breadcrumb(
     if breadcrumb_in.parent_id is not None:
         parent = session.get(Breadcrumb, breadcrumb_in.parent_id)
         if not parent:
-            raise HTTPException(
-                status_code=400, detail="Parent breadcrumb not found"
-            )
+            raise HTTPException(status_code=400, detail="Parent breadcrumb not found")
         if parent.theme_id != theme_id:
             raise HTTPException(
                 status_code=400,
@@ -401,7 +406,9 @@ ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 STATIC_DIR = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 
 if ENVIRONMENT == "production" and STATIC_DIR.exists():
-    app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="static-assets")
+    app.mount(
+        "/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="static-assets"
+    )
 
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):

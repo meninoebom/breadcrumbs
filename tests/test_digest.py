@@ -2,17 +2,13 @@
 
 import secrets
 from datetime import date, datetime, timedelta, timezone
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-import pytest
 from fastapi.testclient import TestClient
-from sqlmodel import select
 
 from app.models import (
     Digest,
-    DigestSend,
     DigestStatus,
-    SendStatus,
     Subscriber,
     Theme,
     Breadcrumb,
@@ -41,7 +37,9 @@ def _make_digest(session, *, status=DigestStatus.draft, period_start=None) -> Di
     return digest
 
 
-def _make_subscriber(session, *, email="reader@example.com", confirmed=True, unsubscribed=False) -> Subscriber:
+def _make_subscriber(
+    session, *, email="reader@example.com", confirmed=True, unsubscribed=False
+) -> Subscriber:
     sub = Subscriber(
         email=email,
         confirmation_token=secrets.token_urlsafe(48),
@@ -270,7 +268,7 @@ def test_send_to_subscribers_happy_path(mock_send_one, session):
     from app.digest.send import send_digest_to_subscribers
 
     d = _make_digest(session, status=DigestStatus.published)
-    sub = _make_subscriber(session)
+    _make_subscriber(session)
     session.flush()
 
     result = send_digest_to_subscribers(session, d)
@@ -288,7 +286,7 @@ def test_send_skips_already_sent(mock_send_one, session):
     from app.digest.send import send_digest_to_subscribers
 
     d = _make_digest(session, status=DigestStatus.published)
-    sub = _make_subscriber(session)
+    _make_subscriber(session)
     session.flush()
 
     # First send
@@ -326,7 +324,9 @@ def test_send_excludes_unconfirmed_and_unsubscribed(mock_send_one, session):
 
     d = _make_digest(session, status=DigestStatus.published)
     _make_subscriber(session, email="unconfirmed@example.com", confirmed=False)
-    _make_subscriber(session, email="unsub@example.com", confirmed=True, unsubscribed=True)
+    _make_subscriber(
+        session, email="unsub@example.com", confirmed=True, unsubscribed=True
+    )
     session.flush()
 
     result = send_digest_to_subscribers(session, d)
@@ -364,7 +364,9 @@ def test_subscribe_already_active(mock_email, client, session):
 
 @patch("app.digest.routes.send_confirmation_email")
 def test_subscribe_resubscribe_after_unsubscribe(mock_email, client, session):
-    _make_subscriber(session, email="back@example.com", confirmed=True, unsubscribed=True)
+    _make_subscriber(
+        session, email="back@example.com", confirmed=True, unsubscribed=True
+    )
     session.commit()
 
     resp = client.post(
@@ -376,7 +378,9 @@ def test_subscribe_resubscribe_after_unsubscribe(mock_email, client, session):
     mock_email.assert_called_once()
 
 
-@patch("app.digest.routes.send_confirmation_email", side_effect=Exception("Resend down"))
+@patch(
+    "app.digest.routes.send_confirmation_email", side_effect=Exception("Resend down")
+)
 def test_subscribe_email_failure_returns_502(mock_email, client):
     resp = client.post(
         "/api/subscribers/subscribe",
@@ -440,7 +444,10 @@ def test_unsubscribe_idempotent(client, session):
 
 @patch.dict("os.environ", {"CRON_SECRET": "s3cret"})
 @patch("app.digest.routes.generate_digest")
-@patch("app.digest.routes.get_current_week_bounds", return_value=(date(2026, 2, 17), date(2026, 2, 23)))
+@patch(
+    "app.digest.routes.get_current_week_bounds",
+    return_value=(date(2026, 2, 17), date(2026, 2, 23)),
+)
 def test_cron_generates_draft(mock_bounds, mock_gen, client, session):
     digest = _make_digest(session)
     session.commit()
@@ -473,7 +480,9 @@ def test_generate_digest_endpoint(mock_gen, client, session):
     session.commit()
     mock_gen.return_value = digest
 
-    resp = client.post("/api/digests/generate?period_start=2026-03-01&period_end=2026-03-07")
+    resp = client.post(
+        "/api/digests/generate?period_start=2026-03-01&period_end=2026-03-07"
+    )
     assert resp.status_code == 201
 
 
@@ -482,7 +491,9 @@ def test_generate_digest_conflict(mock_gen, client, session):
     _make_digest(session, period_start=date(2026, 2, 17))
     session.commit()
 
-    resp = client.post("/api/digests/generate?period_start=2026-02-17&period_end=2026-02-23")
+    resp = client.post(
+        "/api/digests/generate?period_start=2026-02-17&period_end=2026-02-23"
+    )
     assert resp.status_code == 409
 
 

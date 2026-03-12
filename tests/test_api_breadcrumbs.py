@@ -30,9 +30,7 @@ def test_create_breadcrumb_missing_body(client):
     r = client.post("/api/themes", json={"body_md": "My Theme"})
     theme_id = r.json()["id"]
 
-    response = client.post(
-        f"/api/themes/{theme_id}/breadcrumbs", json={}
-    )
+    response = client.post(f"/api/themes/{theme_id}/breadcrumbs", json={})
     assert response.status_code == 422
 
 
@@ -116,9 +114,7 @@ def test_delete_breadcrumb(client):
     )
     bc_id = r.json()["id"]
 
-    response = client.delete(
-        f"/api/themes/{theme_id}/breadcrumbs/{bc_id}"
-    )
+    response = client.delete(f"/api/themes/{theme_id}/breadcrumbs/{bc_id}")
     assert response.status_code == 204
 
     # Verify it's gone
@@ -130,9 +126,7 @@ def test_delete_breadcrumb_not_found(client):
     r = client.post("/api/themes", json={"body_md": "My Theme"})
     theme_id = r.json()["id"]
 
-    response = client.delete(
-        f"/api/themes/{theme_id}/breadcrumbs/999"
-    )
+    response = client.delete(f"/api/themes/{theme_id}/breadcrumbs/999")
     assert response.status_code == 404
 
 
