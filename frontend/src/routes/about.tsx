@@ -12,13 +12,20 @@ function About() {
       <div className="prose prose-sm max-w-none space-y-4">
         <p>
           I'm Brandon. I build things and think about building things, which
-          sometimes feels like the same activity. I'm also interested in
-          consciousness, philosophy of mind, football (which Americans call soccer),
-          music, dance, meditation, and how human beings can live well together. All of that and more could show up here.
+          sometimes feels like the same activity. Right now a lot of that
+          building is happening at the intersection of movement, music, and
+          technology. I'm working on instruments that listen to dancers and
+          respond with sound, and writing about what I'm calling relational
+          musicality — the idea that choreo-musical traditions like capoeira
+          and house dance are sophisticated technologies for human coordination
+          that we've mostly failed to recognize as such. I'm also interested
+          in consciousness, philosophy of mind, football (which Americans call
+          soccer), meditation, and how human beings can live well together.
+          All of that and more could show up here.
         </p>
         <p>
           Breadcrumbs is where I drop the small thoughts that fall out of
-          all of that — observations, questions, half-formed ideas — before
+          all of that. Observations, questions, half-formed ideas, before
           they evaporate. Think of it less like a blog and more like a
           notebook left open on the table. Not essays. Not tutorials. Just
           crumbs, organized into themes, dropped along the way.
@@ -32,7 +39,7 @@ function About() {
           >
             Bits and Bobs
           </a>
-          {" "}— the idea that the interesting thoughts rarely arrive fully
+          — the idea that the interesting thoughts rarely arrive fully
           formed. They start as fragments. If you collect enough of them in
           one place, patterns emerge that you couldn't have planned.
         </p>
