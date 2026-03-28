@@ -1,11 +1,13 @@
 import logging
 import os
 import re
+import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query
+import boto3
+from fastapi import APIRouter, Depends, FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -385,6 +387,45 @@ def get_themes_by_tag(
     if not tag:
         raise HTTPException(status_code=404, detail="Tag not found")
     return tag.themes
+
+
+# ---------- image uploads ----------
+
+ALLOWED_IMAGE_TYPES = {"image/png", "image/jpeg", "image/gif", "image/webp", "image/svg+xml"}
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
+
+
+@router.post("/uploads")
+def upload_image(
+    file: UploadFile = File(...),
+    _admin: None = Depends(require_admin),
+):
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(400, f"Unsupported image type: {file.content_type}")
+
+    contents = file.file.read()
+    if len(contents) > MAX_UPLOAD_BYTES:
+        raise HTTPException(413, "File too large (10MB max)")
+
+    ext = os.path.splitext(file.filename or "")[1] or ".png"
+    key = f"{uuid.uuid4().hex[:12]}{ext}"
+
+    s3 = boto3.client(
+        "s3",
+        endpoint_url=f"https://{os.getenv('R2_ACCOUNT_ID')}.r2.cloudflarestorage.com",
+        aws_access_key_id=os.getenv("R2_ACCESS_KEY_ID"),
+        aws_secret_access_key=os.getenv("R2_SECRET_ACCESS_KEY"),
+        region_name="auto",
+    )
+    s3.put_object(
+        Bucket=os.getenv("R2_BUCKET_NAME"),
+        Key=key,
+        Body=contents,
+        ContentType=file.content_type,
+    )
+
+    public_url = f"{os.getenv('R2_PUBLIC_URL', '').rstrip('/')}/{key}"
+    return {"url": public_url}
 
 
 # ---------- app assembly ----------

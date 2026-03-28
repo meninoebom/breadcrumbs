@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { Check, Plus, X } from "lucide-react"
+import { Check, ImagePlus, Plus, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { createBreadcrumb } from "@/lib/api"
+import { createBreadcrumb, uploadImage } from "@/lib/api"
 
 interface AddBreadcrumbFormProps {
   themeId: number
@@ -15,8 +15,10 @@ export function AddBreadcrumbForm({ themeId, parentId, onCancel }: AddBreadcrumb
   const queryClient = useQueryClient()
   const [bodyMd, setBodyMd] = useState("")
   const [showSaved, setShowSaved] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const savedTimer = useRef<ReturnType<typeof setTimeout>>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Clean up timer on unmount
   useEffect(() => {
@@ -57,6 +59,25 @@ export function AddBreadcrumbForm({ themeId, parentId, onCancel }: AddBreadcrumb
     submit()
   }
 
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = "" // reset so same file can be re-selected
+    setUploading(true)
+    try {
+      const { url } = await uploadImage(file)
+      const textarea = textareaRef.current
+      const pos = textarea?.selectionStart ?? bodyMd.length
+      const markdown = `![](${url})\n`
+      setBodyMd(bodyMd.slice(0, pos) + markdown + bodyMd.slice(pos))
+    } catch (err) {
+      mutation.reset()
+      alert(err instanceof Error ? err.message : "Upload failed")
+    } finally {
+      setUploading(false)
+    }
+  }
+
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
@@ -69,6 +90,13 @@ export function AddBreadcrumbForm({ themeId, parentId, onCancel }: AddBreadcrumb
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleFileSelect}
+      />
       <Textarea
         ref={textareaRef}
         value={bodyMd}
@@ -89,6 +117,16 @@ export function AddBreadcrumbForm({ themeId, parentId, onCancel }: AddBreadcrumb
         >
           <Plus className="size-4" />
           {mutation.isPending ? "Adding..." : parentId ? "Reply" : "Add Breadcrumb"}
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={uploading}
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <ImagePlus className="size-4" />
+          {uploading ? "Uploading..." : "Image"}
         </Button>
         {onCancel && (
           <Button type="button" size="sm" variant="outline" onClick={onCancel}>

@@ -36,6 +36,11 @@ async function apiFetch<T>(url: string, label: string, headers?: Record<string, 
     )
   }
   if (!res.ok) {
+    if (res.status === 401) {
+      clearToken()
+      window.location.href = "/login"
+      return undefined as never
+    }
     let detail = ""
     try {
       const body = await res.json()
@@ -112,7 +117,7 @@ async function apiMutate<T = void>(
     if (res.status === 401) {
       clearToken()
       window.location.href = "/login"
-      throw new Error("Authentication required")
+      return undefined as never
     }
     let detail = ""
     try {
@@ -244,6 +249,43 @@ export function sendDigest(digestId: number): Promise<{ sent: number; failed: nu
     method: "POST",
     label: "send digest",
   })
+}
+
+// ---------------------------------------------------------------------------
+// Image uploads
+// ---------------------------------------------------------------------------
+
+export async function uploadImage(file: File): Promise<{ url: string }> {
+  const token = getToken()
+  const formData = new FormData()
+  formData.append("file", file)
+
+  let res: Response
+  try {
+    res = await fetch("/api/uploads", {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    })
+  } catch (err) {
+    throw new Error("Cannot reach the API. Is the backend running? (uv run dev)", { cause: err })
+  }
+  if (!res.ok) {
+    if (res.status === 401) {
+      clearToken()
+      window.location.href = "/login"
+      return undefined as never
+    }
+    let detail = ""
+    try {
+      const b = await res.json()
+      detail = typeof b.detail === "string" ? b.detail : JSON.stringify(b.detail)
+    } catch {
+      // Response body wasn't JSON
+    }
+    throw new Error(`Failed to upload image (${res.status})${detail ? `: ${detail}` : ""}`)
+  }
+  return res.json()
 }
 
 export function subscribe(email: string): Promise<{ message: string }> {
