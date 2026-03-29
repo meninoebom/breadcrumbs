@@ -14,6 +14,7 @@
 - **Weekly Digests** — AI-generated weekly summaries interleaved in reader feed, admin digest management in writer dashboard, APScheduler for automated generation (Sunday) and send (Tuesday), email subscriptions with double opt-in, detail drill-down page
 - **Monthly Digests** — Progressive summarization (monthly summaries generated from weekly summaries), DigestType enum (weekly/monthly), scheduler job on 1st of month, AI-generated indicator (sparkles icon) on all summary cards
 - **Navigation & Permalinks** — Sidebar digest nav (monthly digest links with smooth-scroll), theme permalink pages (`/themes/$themeId`), hover-visible permalink icons on themes, DOM anchor IDs on all feed items
+- **Image Uploads** — Upload images/GIFs to Cloudflare R2 via writer dashboard, markdown image syntax inserted into breadcrumbs
 
 ## Up Next
 

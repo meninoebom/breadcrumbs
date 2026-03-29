@@ -74,6 +74,7 @@
 - **Frontend:** Vitest + React Testing Library
 - **Coverage target:** 70%+ for critical paths
 - **E2E:** Playwright for key user flows
+- **Testing with SQLite:** Use in-memory (`:memory:`) with StaticPool; SQLite doesn't preserve timezone info on datetime fields
 
 ### Git Workflow
 - Branch naming: `feature/description` or `fix/description`
@@ -97,9 +98,7 @@ After each PR, offer:
 If yes, create `docs/log/NNN-slug.md` and update the README.md index.
 See `docs/log/README.md` for format and dimensions.
 
-## Project-Specific Notes
-
-### Core Features
+## Core Features
 - **Theme creation:** Writers create themes as containers for related breadcrumbs
 - **Breadcrumb authoring:** Add small individual thought atoms (breadcrumbs) to themes
 - **Tag-based organization:** Tags applied at theme level for filtering and discovery
@@ -116,102 +115,9 @@ See `docs/log/README.md` for format and dimensions.
 - **Agent authoring:** OpenClaw skill enables content creation via Telegram (voice or text input)
 - **Sidebar digest nav:** Monthly digest links in left sidebar smooth-scroll to digest position in feed (desktop only)
 - **Theme permalinks:** Standalone `/themes/$themeId` pages for sharing individual themes, with hover-visible link icon in the feed
+- **Image uploads:** Upload images/GIFs to Cloudflare R2 via `POST /api/uploads`, insert markdown image syntax into breadcrumbs
 
-### Key Design Decisions
-- **Visual style:** Reads like one long rant/stream-of-consciousness rather than discrete articles
-- **Inspired by Google Docs approach:** Based on a public PM's running document
-- **PostgreSQL for search:** Leverage full-text search capabilities
-- **SQLModel ORM:** Type-safe database operations with Pydantic integration
-- **TanStack ecosystem:** Modern React state and routing without heavy framework
-- **Shadcn UI:** Copy-paste components for customization instead of npm dependency
-
-### Data Model
-**Theme:**
-- `id` - Primary key
-- `body_md` - Required markdown content (the thought itself, e.g., "The past and future are ghosts...")
-- `visibility` - Enum: draft or published (controls reader visibility)
-- `created_at` - When theme was created
-- `updated_at` - Last modified datetime
-- `breadcrumbs` - Relationship to breadcrumbs (one-to-many)
-- `tags` - Relationship to tags (many-to-many via ThemeTag)
-- **Purpose:** A thought that can have sub-thoughts (breadcrumbs). Themes are the primary organizational unit. Tags and visibility are managed at theme level.
-
-**Breadcrumb:**
-- `id` - Primary key
-- `body_md` - Markdown text (the actual thought/content atom)
-- `created_at` - Created datetime
-- `updated_at` - Last modified datetime
-- `theme_id` - Foreign key to Theme (required, one-to-many)
-- `parent_id` - Optional FK to another Breadcrumb (self-referential, adjacency list pattern)
-- **Purpose:** Small individual thought atoms that belong to a theme. Breadcrumbs can nest: a breadcrumb with `parent_id` is a reply/elaboration on another breadcrumb. `parent_id` is immutable after creation. Visibility is inherited from parent theme.
-
-**Tag:**
-- `id` - Primary key
-- `name` - Tag name (normalized: lowercase, dashes, unique)
-- `themes` - Relationship to themes (many-to-many via ThemeTag)
-
-**ThemeTag (join table):**
-- `theme_id` - Foreign key to Theme
-- `tag_id` - Foreign key to Tag
-
-**Relationship Design:**
-- **Themes = Thoughts**: Primary content units with body, tags, and visibility
-- **Breadcrumbs = Sub-thoughts**: Individual thought atoms that belong to exactly one theme
-- **Breadcrumb nesting**: Breadcrumbs can have parent-child relationships (adjacency list). Parent must be in the same theme. Cascade delete: deleting a parent deletes all children. Depth soft-limited to 10 at the API level.
-- **Tags = Discovery mechanism**: Applied to themes for filtering and browsing
-- Themes must have body_md and can have 0+ tags
-- Breadcrumbs must belong to exactly one theme
-- Only published themes (and their breadcrumbs) are visible to readers
-- Writers see both draft and published themes when authenticated
-
-### Common Patterns
-
-**Cascade Delete (Hybrid Approach):**
-Use three together for proper cascade delete behavior:
-1. **Database level:** `ondelete="CASCADE"` in `Field()` - enforces at SQL level
-2. **ORM awareness:** `cascade="all, delete[-orphan]"` in relationship - tells SQLAlchemy what's happening
-3. **Efficiency:** `passive_deletes=True` - uses DB cascade for unloaded collections
-
-**When to use `delete-orphan`:**
-- Existential dependency (child can't exist without parent)
-- Example: Breadcrumb → Theme (breadcrumb without theme is invalid)
-- Example: Breadcrumb → Parent Breadcrumb (self-referential, reply without parent is orphaned)
-- Deletes children when removed from collection OR parent deleted
-
-**When to use `save-update, merge` only (many-to-many):**
-- Independent entities linked by a join table
-- Example: Theme ↔ Tag (both exist independently)
-- DB-level `ondelete="CASCADE"` on the join table FKs handles link row cleanup
-- Do NOT use `cascade="all, delete"` — this deletes the *related entities*, not just the association rows
-
-**Example:**
-```python
-# One-to-many with orphan deletion (Theme → Breadcrumbs)
-breadcrumbs: List["Breadcrumb"] = Relationship(
-    back_populates="theme",
-    sa_relationship_kwargs={
-        "cascade": "all, delete-orphan",
-        "passive_deletes": True,
-    }
-)
-
-# Many-to-many (Theme ↔ Tags) — link table cleanup via DB cascade
-tags: List["Tag"] = Relationship(
-    back_populates="themes",
-    link_model=ThemeTag,
-    sa_relationship_kwargs={
-        "cascade": "save-update, merge",
-        "passive_deletes": True,
-    }
-)
-```
-
-**PostgreSQL Table Naming:**
-- Explicitly set `__tablename__` for join tables to follow snake_case convention
-- Example: `__tablename__ = "theme_tag"` (not auto-generated "themetag")
-- Improves readability in psql and aligns with PostgreSQL conventions
-
-### Gotchas & Known Issues
+## Gotchas (Critical Agent Directives)
 
 **SQLModel + SQLAlchemy 2.0 Compatibility:**
 - Do NOT use `from __future__ import annotations` - causes relationship resolution errors
@@ -219,18 +125,13 @@ tags: List["Tag"] = Relationship(
 - Add `# type: ignore` to relationship fields to suppress false type checker warnings
 - SQLModel `Relationship()` doesn't accept SQLAlchemy parameters directly - use `sa_relationship_kwargs` dict:
   ```python
-  # ❌ Wrong - TypeError
+  # Wrong - TypeError
   Relationship(cascade="all, delete", passive_deletes=True)
 
-  # ✅ Correct
-  Relationship(
-      sa_relationship_kwargs={
-          "cascade": "all, delete",
-          "passive_deletes": True,
-      }
-  )
+  # Correct
+  Relationship(sa_relationship_kwargs={"cascade": "all, delete", "passive_deletes": True})
   ```
-- For cascade deletes: Use `ondelete="CASCADE"` in `Field()` for FK + `cascade` + `passive_deletes` in `Relationship()` (see Common Patterns)
+- For cascade deletes: Use `ondelete="CASCADE"` in `Field()` for FK + `cascade` + `passive_deletes` in `Relationship()` (see `docs/solutions/cascade-patterns.md`)
 
 **Pydantic Validators in SQLModel:**
 - Field validators in base classes (table=False) don't apply to table models (table=True)
@@ -241,95 +142,14 @@ tags: List["Tag"] = Relationship(
 - `load_dotenv()` is called in `db.py`, but any module that reads env vars at import time (e.g. `auth.py`) may be imported *before* `db.py`
 - If that happens, `os.getenv()` returns empty strings because `.env` hasn't been loaded yet
 - Fix: any module that reads env vars at module level should call `load_dotenv()` itself before `os.getenv()`
-- This bit us with `ADMIN_PASSWORD` — login silently failed because the value was empty
 
 **TanStack Router route tree must be committed:**
 - `frontend/src/routeTree.gen.ts` is auto-generated during `vite dev` when route files change
 - Docker builds run `tsc` before `vite build`, so the route tree must be pre-committed
-- If you add a new route file (e.g. `themes.$themeId.tsx`), run `npm run build` locally and commit the updated `routeTree.gen.ts` or the deploy will fail with TS errors
+- If you add a new route file, run `npm run build` locally and commit the updated `routeTree.gen.ts`
 
-**Testing with SQLite:**
-- SQLite doesn't preserve timezone info on datetime fields
-- Use in-memory database (`:memory:`) for fast, isolated tests
-- StaticPool required for in-memory SQLite with SQLModel
-
-### Digests (Weekly & Monthly Summaries)
-
-**What:** AI-generated summaries that appear inline in the main feed, interleaved chronologically with regular breadcrumbs. Weekly summaries (2-4 sentences) recap the week's themes. Monthly summaries (3-6 sentences) synthesize weekly summaries into higher-altitude arcs via progressive summarization.
-
-**Architecture:**
-- `app/digest/` — Generation (Claude), email (Resend), sending, API routes
-- Models: `Digest`, `DigestType`, `Subscriber`, `DigestSend` (in `app/models.py`)
-- `DigestType` enum: `weekly` or `monthly` — stored on the `Digest` model
-- Frontend: summaries render inline via `WeeklySummary` component in the main feed
-- Writer dashboard: digests interleaved chronologically with themes, clickable detail page at `/writer/digests/$digestId`
-- Confirm/unsubscribe pages: `/digest/confirm`, `/digest/unsubscribe`
-- Scheduler: `app/scheduler.py` — APScheduler `BackgroundScheduler` with three cron jobs
-- AI indicator: subtle sparkles icon (lucide-react) in bottom-right of every summary card, with "AI-generated summary" tooltip
-
-**How summaries appear in the feed:**
-- The feed merges date-grouped themes and published digests into one chronological list
-- Summaries are keyed by `period_end` date, so they appear after that period's content
-- Different visual treatment: dashed border, muted background, lighter heading
-- Monthly headings show "February 2026", weekly show "Week of Feb 1–7, 2026"
-- Summaries are hidden when tag/search filters are active
-
-**Progressive summarization:**
-- Weekly digests summarize raw themes + breadcrumbs
-- Monthly digests summarize published weekly digests (not raw content)
-- Fallback: if no weekly digests exist for a month, falls back to raw content
-- This creates a pyramid of abstraction: weekly captures details, monthly captures trends
-- Future: yearly summaries from monthly summaries
-
-**Admin workflow (manual or agent):**
-1. `POST /api/digests/generate?period_start=YYYY-MM-DD&period_end=YYYY-MM-DD&digest_type=weekly` — Claude writes a summary (draft)
-2. `POST /api/digests/generate?digest_type=monthly` — generates monthly from weekly summaries (auto-detects previous month bounds)
-3. `POST /api/digests/{id}/publish` — Makes it visible in the feed
-4. `POST /api/digests/{id}/send` — (Optional) deliver to email subscribers
-
-**Scheduler (APScheduler):**
-- In-process `BackgroundScheduler` in `app/scheduler.py`, gated behind `ENABLE_SCHEDULER=true`
-- Sunday 6am PT (14:00 UTC): generates a draft weekly digest for the past week
-- 1st of month 6am PT (14:00 UTC): generates a draft monthly digest for the previous month
-- Tuesday 6am PT (14:00 UTC): publishes and sends any draft digests (weekly or monthly)
-- Idempotent: checks for existing digest with same `period_start` + `digest_type` before generating
-- Each job creates its own `Session(engine)` since it runs outside request context
-- **Known limitation:** generating early in the week/month then generating again later does NOT update the draft — it skips because one already exists. Regeneration not yet implemented.
-
-**Legacy cron endpoint (still available):** `POST /api/internal/weekly-digest?secret=X&auto_send=true`
-- Needs `CRON_SECRET` env var set
-- Superseded by APScheduler but kept for manual triggering
-
-**Email subscriptions (modular, can be removed):**
-- Subscribe widget at bottom of feed with double opt-in flow
-- Resend for delivery (RESEND_API_KEY env var)
-- Emails contain the short summary + link to homepage
-- Subscriber flow is fully independent of summary display
-
-**Key constraints:**
-- `UNIQUE(period_start, digest_type)` on digest — prevents duplicate digests per period and type
-- `UNIQUE(digest_id, subscriber_id)` on digest_send — prevents double-sending
-- Indexes on `confirmation_token` and `unsubscribe_token` for fast lookups
-
-**Generation prompts:** Live in `app/digest/generate.py`. Weekly: `SYSTEM_PROMPT` (journalist capsule recap). Monthly: `MONTHLY_SYSTEM_PROMPT` (magazine month-in-review). Both third-person, warm, observational.
-
-**Future direction:** Yearly summaries from monthly summaries. Digest regeneration for updating drafts.
-
-### Deployment Gotchas
-
-**Railway PR deploys:** Enabled in settings but may not work on free/trial plans. Test locally against a staging DB instead:
-```bash
-createdb breadcrumbs_staging
-DATABASE_URL="postgresql://localhost/breadcrumbs_staging" uv run alembic upgrade head
-DATABASE_URL="postgresql://localhost/breadcrumbs_staging" uv run dev
-```
-
-**Environment variables for weekly summaries:**
-- `ANTHROPIC_API_KEY` — for Claude generation
-- `RESEND_API_KEY` — for email delivery
-- `CRON_SECRET` — shared secret for cron endpoint authentication
-- `ENABLE_SCHEDULER` — set to `true` to activate APScheduler cron jobs
-- `BASE_URL` — defaults to `https://crumb.blog`, used in email links
-- All set as Railway shared variables, must be "shared" to the web app service
-
-**Rollback safety:** Weekly summary tables (`digest`, `subscriber`, `digest_send`) have no foreign keys into existing tables. Code changes are additive (new module, new routes appended). Rollback: `git revert` + `alembic downgrade` is clean.
+## Deep-Dive References
+- **Data model:** `docs/data-model.md`
+- **Cascade delete patterns:** `docs/solutions/cascade-patterns.md`
+- **Digests (weekly/monthly summaries):** `docs/digests.md`
+- **Deployment gotchas:** `docs/solutions/deployment-gotchas.md`
