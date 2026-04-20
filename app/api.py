@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.exc import DataError, IntegrityError, OperationalError
 from starlette.requests import Request
-from sqlmodel import Session, col, func, or_, select
+from sqlmodel import Session, SQLModel, col, func, or_, select
 
 from app.auth import create_access_token, require_admin, verify_admin_password
 from app.db import get_session
@@ -79,7 +79,7 @@ def data_error_handler(request: Request, exc: DataError):
     return JSONResponse(status_code=400, content={"detail": "Invalid data submitted"})
 
 
-THEME_UPDATABLE_FIELDS = {"body_md", "visibility"}
+THEME_UPDATABLE_FIELDS = {"body_md", "visibility", "image_url"}
 
 
 # ---------- helpers ----------
@@ -241,6 +241,63 @@ def delete_theme(
         raise HTTPException(status_code=404, detail="Theme not found")
     session.delete(theme)
     session.flush()
+
+
+# ---------- theme cover image endpoints ----------
+
+
+class GenerateImageResponse(SQLModel):
+    prompt: str
+    candidates: list[str]
+
+
+class CommitImageRequest(SQLModel):
+    source_url: str
+
+
+@router.post("/themes/{theme_id}/generate-image", response_model=GenerateImageResponse)
+def generate_theme_image(
+    theme_id: int,
+    session: Session = Depends(get_session),
+    _admin: None = Depends(require_admin),
+):
+    theme = session.get(Theme, theme_id)
+    if not theme:
+        raise HTTPException(status_code=404, detail="Theme not found")
+
+    from app.images import build_theme_prompt, generate_candidate_images, tags_for_prompt
+
+    try:
+        prompt = build_theme_prompt(theme, tags_for_prompt(theme))
+    except NotImplementedError as e:
+        raise HTTPException(status_code=501, detail=str(e))
+
+    try:
+        candidates = generate_candidate_images(prompt)
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+    return GenerateImageResponse(prompt=prompt, candidates=candidates)
+
+
+@router.post("/themes/{theme_id}/image", response_model=ThemePublic)
+def commit_theme_image(
+    theme_id: int,
+    body: CommitImageRequest,
+    session: Session = Depends(get_session),
+    _admin: None = Depends(require_admin),
+):
+    theme = session.get(Theme, theme_id)
+    if not theme:
+        raise HTTPException(status_code=404, detail="Theme not found")
+
+    from app.images import commit_image_to_r2
+
+    theme.image_url = commit_image_to_r2(body.source_url)
+    session.add(theme)
+    session.flush()
+    session.refresh(theme)
+    return theme
 
 
 # ---------- breadcrumb endpoints ----------

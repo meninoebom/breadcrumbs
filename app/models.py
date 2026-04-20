@@ -33,6 +33,11 @@ class ThemeBase(SQLModel, table=False):
     visibility: Visibility = Field(
         default=Visibility.draft, description="The theme's status (draft or published)"
     )
+    image_url: Optional[str] = Field(
+        default=None,
+        max_length=2048,
+        description="Public R2 URL for the theme's generated cover image",
+    )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         description="When this theme was created",
@@ -76,6 +81,7 @@ class ThemeCreate(ThemeBase, table=False):
 class ThemeUpdate(SQLModel, table=False):
     body_md: Optional[str] = None
     visibility: Optional[Visibility] = None
+    image_url: Optional[str] = None
     tags: Optional[List["TagCreate"]] = None
 
 

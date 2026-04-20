@@ -60,7 +60,7 @@ function ThemePermalink() {
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <BackLink />
-      <ThemeSection theme={theme} />
+      <ThemeSection theme={theme} variant="permalink" />
     </div>
   )
 }

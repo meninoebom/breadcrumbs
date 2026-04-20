@@ -17,6 +17,7 @@ export interface ThemePublic {
   id: number
   body_md: string
   visibility: Visibility
+  image_url: string | null
   created_at: string
   updated_at: string | null
   tags: TagPublic[]
@@ -51,7 +52,14 @@ export interface ThemeCreateInput {
 export interface ThemeUpdateInput {
   body_md?: string
   visibility?: Visibility
+  image_url?: string | null
   tags?: { name: string }[]
+}
+
+/** Response from POST /themes/{id}/generate-image */
+export interface GenerateImageResponse {
+  prompt: string
+  candidates: string[]
 }
 
 /** Input for POST breadcrumbs */
