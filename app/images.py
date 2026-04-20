@@ -19,8 +19,10 @@ DEFAULT_NUM_OUTPUTS = 4
 
 STYLE_SUFFIX = (
     "Rendered as a flat oil painting in a limited three-color palette, "
-    "figurative and confident, contemporary museum-quality painting, "
-    "tone balanced between gravity and play."
+    "figurative and confident, contemporary museum-quality painting. "
+    "When human figures appear, depict a diversity of people — "
+    "including people of color, varied ages, and varied body types. "
+    "Tone balanced between gravity and play."
 )
 
 
