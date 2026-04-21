@@ -4,6 +4,7 @@ import type {
   BreadcrumbPublic,
   DigestPublic,
   DigestType,
+  GenerateImageResponse,
   TagWithCount,
   ThemeCreateInput,
   ThemePublic,
@@ -169,6 +170,31 @@ export function deleteTheme(themeId: number): Promise<void> {
   return apiMutate(`/api/themes/${themeId}`, {
     method: "DELETE",
     label: "delete theme",
+  })
+}
+
+export function generateThemeImage(themeId: number): Promise<GenerateImageResponse> {
+  return apiMutate(`/api/themes/${themeId}/generate-image`, {
+    method: "POST",
+    label: "generate theme image",
+  })
+}
+
+export function commitThemeImage(
+  themeId: number,
+  sourceUrl: string,
+): Promise<ThemePublic> {
+  return apiMutate(`/api/themes/${themeId}/image`, {
+    method: "POST",
+    body: { source_url: sourceUrl },
+    label: "commit theme image",
+  })
+}
+
+export function clearThemeImage(themeId: number): Promise<ThemePublic> {
+  return apiMutate(`/api/themes/${themeId}/image`, {
+    method: "DELETE",
+    label: "clear theme image",
   })
 }
 

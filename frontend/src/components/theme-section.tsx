@@ -11,9 +11,10 @@ import { cn } from "@/lib/utils"
 
 interface ThemeSectionProps {
   theme: ThemePublic
+  variant?: "feed" | "permalink"
 }
 
-export function ThemeSection({ theme }: ThemeSectionProps) {
+export function ThemeSection({ theme, variant = "feed" }: ThemeSectionProps) {
   const {
     data: breadcrumbs,
     isLoading,
@@ -30,7 +31,21 @@ export function ThemeSection({ theme }: ThemeSectionProps) {
 
   return (
     <article id={`theme-${theme.id}`} className="group/theme space-y-3">
-      <div className="flex items-start gap-2">
+      {theme.image_url && variant === "permalink" && (
+        <img
+          src={theme.image_url}
+          alt=""
+          className="w-60 h-60 rounded object-cover"
+        />
+      )}
+      <div className="flex items-start gap-3">
+        {theme.image_url && variant === "feed" && (
+          <img
+            src={theme.image_url}
+            alt=""
+            className="w-14 h-14 rounded object-cover flex-shrink-0 mt-0.5"
+          />
+        )}
         <div className="prose prose-sm max-w-none flex-1">
           <Markdown>{theme.body_md}</Markdown>
         </div>

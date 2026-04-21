@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query"
 import { fetchTheme, fetchBreadcrumbs } from "@/lib/api"
 import { buildTree } from "@/lib/tree"
 import { ThemeHeaderEditor } from "@/components/writer/theme-header-editor"
+import { ThemeImagePicker } from "@/components/writer/theme-image-picker"
 import { BreadcrumbItem } from "@/components/writer/breadcrumb-item"
 import { AddBreadcrumbForm } from "@/components/writer/add-breadcrumb-form"
 import { Separator } from "@/components/ui/separator"
@@ -80,6 +81,8 @@ function ThemeEditor() {
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <ThemeHeaderEditor theme={theme} />
+
+      <ThemeImagePicker theme={theme} />
 
       <Separator />
 

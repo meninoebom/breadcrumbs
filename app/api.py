@@ -4,19 +4,26 @@ import re
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
-import boto3
 from fastapi import APIRouter, Depends, FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.exc import DataError, IntegrityError, OperationalError
 from starlette.requests import Request
-from sqlmodel import Session, col, func, or_, select
+from sqlmodel import Session, SQLModel, col, func, or_, select
 
 from app.auth import create_access_token, require_admin, verify_admin_password
 from app.db import get_session
+from app.images import (
+    ImageCommitError,
+    ImageGenerationError,
+    build_theme_prompt,
+    commit_image_to_r2,
+    generate_candidate_images,
+    tags_for_prompt,
+)
 from app.models import (
     Breadcrumb,
     BreadcrumbBase,
@@ -32,6 +39,7 @@ from app.models import (
     ThemeUpdate,
     Visibility,
 )
+from app.storage import R2ConfigError, put_object
 
 
 @asynccontextmanager
@@ -243,6 +251,80 @@ def delete_theme(
     session.flush()
 
 
+# ---------- theme cover image endpoints ----------
+
+
+class GenerateImageResponse(SQLModel):
+    prompt: str
+    candidates: List[str]
+
+
+class CommitImageRequest(SQLModel):
+    source_url: str
+
+
+@router.post("/themes/{theme_id}/generate-image", response_model=GenerateImageResponse)
+def generate_theme_image(
+    theme_id: int,
+    session: Session = Depends(get_session),
+    _admin: None = Depends(require_admin),
+):
+    theme = session.get(Theme, theme_id)
+    if not theme:
+        raise HTTPException(status_code=404, detail="Theme not found")
+
+    prompt = build_theme_prompt(theme, tags_for_prompt(theme))
+    try:
+        candidates = generate_candidate_images(prompt)
+    except ImageGenerationError as e:
+        logger.warning("Image generation failed for theme %d: %s", theme_id, e)
+        raise HTTPException(status_code=503, detail=str(e))
+
+    return GenerateImageResponse(prompt=prompt, candidates=candidates)
+
+
+@router.post("/themes/{theme_id}/image", response_model=ThemePublic)
+def commit_theme_image(
+    theme_id: int,
+    body: CommitImageRequest,
+    session: Session = Depends(get_session),
+    _admin: None = Depends(require_admin),
+):
+    theme = session.get(Theme, theme_id)
+    if not theme:
+        raise HTTPException(status_code=404, detail="Theme not found")
+
+    try:
+        theme.image_url = commit_image_to_r2(body.source_url)
+    except ImageCommitError as e:
+        logger.warning("Image commit failed for theme %d: %s", theme_id, e)
+        raise HTTPException(status_code=400, detail=str(e))
+    except R2ConfigError as e:
+        logger.error("R2 misconfigured during commit for theme %d: %s", theme_id, e)
+        raise HTTPException(status_code=500, detail="Storage is misconfigured")
+
+    session.add(theme)
+    session.flush()
+    session.refresh(theme)
+    return theme
+
+
+@router.delete("/themes/{theme_id}/image", response_model=ThemePublic)
+def clear_theme_image(
+    theme_id: int,
+    session: Session = Depends(get_session),
+    _admin: None = Depends(require_admin),
+):
+    theme = session.get(Theme, theme_id)
+    if not theme:
+        raise HTTPException(status_code=404, detail="Theme not found")
+    theme.image_url = None
+    session.add(theme)
+    session.flush()
+    session.refresh(theme)
+    return theme
+
+
 # ---------- breadcrumb endpoints ----------
 
 
@@ -410,22 +492,12 @@ def upload_image(
     ext = os.path.splitext(file.filename or "")[1] or ".png"
     key = f"{uuid.uuid4().hex[:12]}{ext}"
 
-    s3 = boto3.client(
-        "s3",
-        endpoint_url=f"https://{os.getenv('R2_ACCOUNT_ID')}.r2.cloudflarestorage.com",
-        aws_access_key_id=os.getenv("R2_ACCESS_KEY_ID"),
-        aws_secret_access_key=os.getenv("R2_SECRET_ACCESS_KEY"),
-        region_name="auto",
-    )
-    s3.put_object(
-        Bucket=os.getenv("R2_BUCKET_NAME"),
-        Key=key,
-        Body=contents,
-        ContentType=file.content_type,
-    )
-
-    public_url = f"{os.getenv('R2_PUBLIC_URL', '').rstrip('/')}/{key}"
-    return {"url": public_url}
+    try:
+        url = put_object(key, contents, file.content_type)
+    except R2ConfigError as e:
+        logger.error("R2 misconfigured during upload: %s", e)
+        raise HTTPException(status_code=500, detail="Storage is misconfigured")
+    return {"url": url}
 
 
 # ---------- app assembly ----------
