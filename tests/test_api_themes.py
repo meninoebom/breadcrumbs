@@ -262,3 +262,133 @@ def test_delete_theme_leaves_tags_intact(client, session):
 def test_delete_theme_not_found(client):
     response = client.delete("/api/themes/999")
     assert response.status_code == 404
+
+
+# ---------- theme cover image endpoints ----------
+
+
+def test_generate_theme_image_not_found(client):
+    response = client.post("/api/themes/999/generate-image")
+    assert response.status_code == 404
+
+
+def test_commit_theme_image_not_found(client):
+    response = client.post(
+        "/api/themes/999/image",
+        json={"source_url": "https://replicate.delivery/x/out.webp"},
+    )
+    assert response.status_code == 404
+
+
+def test_clear_theme_image_not_found(client):
+    response = client.delete("/api/themes/999/image")
+    assert response.status_code == 404
+
+
+def test_update_theme_cannot_set_image_url_via_put(client):
+    """image_url is not in THEME_UPDATABLE_FIELDS — must use the dedicated endpoints."""
+    r = client.post("/api/themes", json={"body_md": "Theme"})
+    theme_id = r.json()["id"]
+
+    # Pydantic accepts the field on input but the whitelist rejects it.
+    response = client.put(
+        f"/api/themes/{theme_id}", json={"image_url": "https://evil.example/x.png"}
+    )
+    assert response.status_code == 400
+    assert "image_url" in response.json()["detail"]
+
+
+def test_generate_theme_image_missing_token(client, monkeypatch):
+    monkeypatch.delenv("REPLICATE_API_TOKEN", raising=False)
+    r = client.post("/api/themes", json={"body_md": "Theme"})
+    theme_id = r.json()["id"]
+
+    response = client.post(f"/api/themes/{theme_id}/generate-image")
+    assert response.status_code == 503
+    assert "REPLICATE_API_TOKEN" in response.json()["detail"]
+
+
+def test_generate_theme_image_happy_path(client, monkeypatch):
+    monkeypatch.setenv("REPLICATE_API_TOKEN", "fake-token")
+    fake_urls = [f"https://replicate.delivery/x/out-{i}.webp" for i in range(4)]
+    monkeypatch.setattr("app.images.replicate.run", lambda *a, **k: fake_urls)
+
+    r = client.post(
+        "/api/themes",
+        json={"body_md": "On the texture of an afternoon", "tags": [{"name": "slowness"}]},
+    )
+    theme_id = r.json()["id"]
+
+    response = client.post(f"/api/themes/{theme_id}/generate-image")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["candidates"] == fake_urls
+    assert "On the texture of an afternoon" in body["prompt"]
+    assert "Mood draws from: slowness" in body["prompt"]
+
+
+def test_commit_theme_image_rejects_non_replicate_host(client):
+    r = client.post("/api/themes", json={"body_md": "Theme"})
+    theme_id = r.json()["id"]
+
+    response = client.post(
+        f"/api/themes/{theme_id}/image",
+        json={"source_url": "https://evil.example/out.webp"},
+    )
+    assert response.status_code == 400
+    assert "allowlist" in response.json()["detail"]
+
+
+def test_commit_theme_image_rejects_non_https(client):
+    r = client.post("/api/themes", json={"body_md": "Theme"})
+    theme_id = r.json()["id"]
+
+    response = client.post(
+        f"/api/themes/{theme_id}/image",
+        json={"source_url": "http://replicate.delivery/x/out.webp"},
+    )
+    assert response.status_code == 400
+
+
+def test_commit_theme_image_happy_path(client, monkeypatch, session):
+    """Mock commit_image_to_r2 at the api seam to avoid network + R2."""
+    monkeypatch.setattr(
+        "app.api.commit_image_to_r2",
+        lambda url: "https://cdn.example/permanent.webp",
+    )
+
+    r = client.post("/api/themes", json={"body_md": "Theme"})
+    theme_id = r.json()["id"]
+
+    response = client.post(
+        f"/api/themes/{theme_id}/image",
+        json={"source_url": "https://replicate.delivery/x/out.webp"},
+    )
+    assert response.status_code == 200
+    assert response.json()["image_url"] == "https://cdn.example/permanent.webp"
+
+    # Persisted on the model.
+    session.expire_all()
+    refreshed = session.get(Theme, theme_id)
+    assert refreshed.image_url == "https://cdn.example/permanent.webp"
+
+
+def test_clear_theme_image_unsets_field(client, monkeypatch, session):
+    monkeypatch.setattr(
+        "app.api.commit_image_to_r2",
+        lambda url: "https://cdn.example/permanent.webp",
+    )
+    r = client.post("/api/themes", json={"body_md": "Theme"})
+    theme_id = r.json()["id"]
+    client.post(
+        f"/api/themes/{theme_id}/image",
+        json={"source_url": "https://replicate.delivery/x/out.webp"},
+    )
+
+    response = client.delete(f"/api/themes/{theme_id}/image")
+    assert response.status_code == 200
+    assert response.json()["image_url"] is None
+
+    session.expire_all()
+    refreshed = session.get(Theme, theme_id)
+    assert refreshed.image_url is None

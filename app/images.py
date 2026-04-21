@@ -1,21 +1,45 @@
 """Theme cover image generation via Replicate (Flux Schnell) + R2 storage."""
 
+import logging
 import os
 import uuid
 from typing import List
+from urllib.parse import urlparse
 
 import httpx
 import replicate
+import replicate.exceptions
 from dotenv import load_dotenv
 
-from app.models import Tag, Theme
+from app.models import Theme
+from app.storage import put_object
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 
 FLUX_SCHNELL_MODEL = "black-forest-labs/flux-schnell"
 DEFAULT_ASPECT_RATIO = "1:1"
 DEFAULT_NUM_OUTPUTS = 4
+
+# Replicate delivery hosts — allowlist for SSRF defense on commit.
+ALLOWED_SOURCE_HOSTS = frozenset({"replicate.delivery", "pbxt.replicate.delivery"})
+
+# Content-type → extension map. Unknown types are rejected rather than defaulted,
+# so we don't silently store non-image bytes as .webp.
+CONTENT_TYPE_EXTENSIONS = {
+    "image/webp": ".webp",
+    "image/png": ".png",
+    "image/jpeg": ".jpg",
+}
+
+# Magic bytes for the formats we accept.
+IMAGE_MAGIC_BYTES = (
+    b"RIFF",       # webp (followed by size + "WEBP" at offset 8)
+    b"\x89PNG",    # png
+    b"\xff\xd8\xff",  # jpeg
+)
 
 STYLE_SUFFIX = (
     "Rendered as a flat oil painting in a limited three-color palette, "
@@ -26,11 +50,18 @@ STYLE_SUFFIX = (
 )
 
 
-def build_theme_prompt(theme: Theme, tag_names: List[str]) -> str:
-    """Translate a theme + its tags into a natural-language Flux prompt.
+class ImageGenerationError(RuntimeError):
+    """Upstream Replicate error — transient, tell the writer to retry."""
 
-    Structure: scene framing + theme snippet + tag mood + fixed style suffix.
-    The suffix is what makes every generated image feel like it belongs on crumb.blog.
+
+class ImageCommitError(RuntimeError):
+    """Error downloading or validating a chosen candidate image."""
+
+
+def build_theme_prompt(theme: Theme, tag_names: List[str]) -> str:
+    """Translate a theme + tags into a natural-language Flux prompt.
+
+    Scene framing + theme snippet + tag mood + fixed style suffix.
     """
     body = (theme.body_md or "").strip()
     first_sentence = body.split(".")[0].strip()
@@ -52,63 +83,85 @@ def generate_candidate_images(
     num_outputs: int = DEFAULT_NUM_OUTPUTS,
     aspect_ratio: str = DEFAULT_ASPECT_RATIO,
 ) -> List[str]:
-    """Call Flux Schnell on Replicate, return a list of temporary image URLs.
-
-    The returned URLs are served by Replicate and expire in ~1 hour — use them
-    for preview in the UI, then call commit_image_to_r2() with the chosen one
-    to get a permanent URL.
-    """
+    """Call Flux Schnell on Replicate, return a list of temporary image URLs."""
     if not os.getenv("REPLICATE_API_TOKEN"):
-        raise RuntimeError("REPLICATE_API_TOKEN is not set")
+        raise ImageGenerationError("REPLICATE_API_TOKEN is not set")
 
-    output = replicate.run(
-        FLUX_SCHNELL_MODEL,
-        input={
-            "prompt": prompt,
-            "num_outputs": num_outputs,
-            "aspect_ratio": aspect_ratio,
-            "output_format": "webp",
-            "output_quality": 90,
-        },
+    try:
+        output = replicate.run(
+            FLUX_SCHNELL_MODEL,
+            input={
+                "prompt": prompt,
+                "num_outputs": num_outputs,
+                "aspect_ratio": aspect_ratio,
+                "output_format": "webp",
+                "output_quality": 90,
+            },
+        )
+    except replicate.exceptions.ReplicateError as e:
+        logger.error("Replicate API error: %s (prompt_len=%d)", e, len(prompt))
+        raise ImageGenerationError(f"Replicate error: {e}") from e
+    except httpx.HTTPError as e:
+        logger.error("Replicate network error: %s (prompt_len=%d)", e, len(prompt))
+        raise ImageGenerationError(f"Network error contacting Replicate: {e}") from e
+
+    urls = [str(item.url) if hasattr(item, "url") else str(item) for item in output]
+    if not urls:
+        logger.error("Replicate returned empty output (prompt_len=%d)", len(prompt))
+        raise ImageGenerationError("Replicate returned no candidates")
+    return urls
+
+
+def _is_allowed_source(source_url: str) -> bool:
+    """Validate source_url is HTTPS and hosted on an allowlisted Replicate domain."""
+    parsed = urlparse(source_url)
+    if parsed.scheme != "https":
+        return False
+    host = parsed.hostname or ""
+    return host in ALLOWED_SOURCE_HOSTS or any(
+        host.endswith(f".{h}") for h in ALLOWED_SOURCE_HOSTS
     )
-    # Replicate returns a list of FileOutput objects; .url gives the stable string.
-    return [str(item.url) if hasattr(item, "url") else str(item) for item in output]
+
+
+def _looks_like_image(data: bytes) -> bool:
+    return any(data.startswith(magic) for magic in IMAGE_MAGIC_BYTES)
 
 
 def commit_image_to_r2(source_url: str) -> str:
-    """Download a temporary image URL and re-upload to R2 under a stable key.
+    """Download an allowlisted Replicate URL and re-upload to R2.
 
-    Returns the permanent public R2 URL.
+    Rejects non-HTTPS URLs, hosts outside the Replicate allowlist, redirects,
+    unknown content types, and payloads that don't start with a known image
+    magic-byte sequence. Returns the permanent public R2 URL.
     """
-    import boto3
+    if not _is_allowed_source(source_url):
+        raise ImageCommitError(
+            f"source_url host not in allowlist: {urlparse(source_url).hostname}"
+        )
 
-    response = httpx.get(source_url, follow_redirects=True, timeout=30)
-    response.raise_for_status()
+    try:
+        response = httpx.get(source_url, follow_redirects=False, timeout=30)
+        response.raise_for_status()
+    except httpx.HTTPError as e:
+        logger.error("Failed to download candidate image from %s: %s", source_url, e)
+        raise ImageCommitError(f"Could not download candidate: {e}") from e
+
     data = response.content
-    content_type = response.headers.get("content-type", "image/webp")
-    ext = {
-        "image/webp": ".webp",
-        "image/png": ".png",
-        "image/jpeg": ".jpg",
-    }.get(content_type, ".webp")
+    content_type = response.headers.get("content-type", "").split(";")[0].strip()
+
+    ext = CONTENT_TYPE_EXTENSIONS.get(content_type)
+    if ext is None:
+        logger.error("Rejecting unknown content-type from %s: %s", source_url, content_type)
+        raise ImageCommitError(f"Unsupported content-type: {content_type!r}")
+
+    if not _looks_like_image(data):
+        logger.error("Payload from %s did not match image magic bytes", source_url)
+        raise ImageCommitError("Downloaded payload is not a recognized image")
 
     key = f"theme-{uuid.uuid4().hex[:12]}{ext}"
-    s3 = boto3.client(
-        "s3",
-        endpoint_url=f"https://{os.getenv('R2_ACCOUNT_ID')}.r2.cloudflarestorage.com",
-        aws_access_key_id=os.getenv("R2_ACCESS_KEY_ID"),
-        aws_secret_access_key=os.getenv("R2_SECRET_ACCESS_KEY"),
-        region_name="auto",
-    )
-    s3.put_object(
-        Bucket=os.getenv("R2_BUCKET_NAME"),
-        Key=key,
-        Body=data,
-        ContentType=content_type,
-    )
-    return f"{os.getenv('R2_PUBLIC_URL', '').rstrip('/')}/{key}"
+    return put_object(key, data, content_type)
 
 
 def tags_for_prompt(theme: Theme) -> List[str]:
-    """Extract tag names safely; theme.tags may be empty."""
+    """Extract tag names safely; theme.tags may be empty or not loaded."""
     return [t.name for t in (theme.tags or [])]

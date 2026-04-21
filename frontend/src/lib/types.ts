@@ -48,11 +48,10 @@ export interface ThemeCreateInput {
   tags?: { name: string }[]
 }
 
-/** Input for PUT /themes/{id} — all fields optional (partial update) */
+/** Input for PUT /themes/{id} — all fields optional (partial update). image_url is set/cleared via dedicated endpoints. */
 export interface ThemeUpdateInput {
   body_md?: string
   visibility?: Visibility
-  image_url?: string | null
   tags?: { name: string }[]
 }
 

@@ -191,6 +191,13 @@ export function commitThemeImage(
   })
 }
 
+export function clearThemeImage(themeId: number): Promise<ThemePublic> {
+  return apiMutate(`/api/themes/${themeId}/image`, {
+    method: "DELETE",
+    label: "clear theme image",
+  })
+}
+
 // ---------------------------------------------------------------------------
 // Breadcrumb mutations
 // ---------------------------------------------------------------------------

@@ -4,9 +4,9 @@ import { Sparkles, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import {
+  clearThemeImage,
   commitThemeImage,
   generateThemeImage,
-  updateTheme,
 } from "@/lib/api"
 import type { ThemePublic } from "@/lib/types"
 
@@ -38,7 +38,7 @@ export function ThemeImagePicker({ theme }: ThemeImagePickerProps) {
   })
 
   const clearImage = useMutation({
-    mutationFn: () => updateTheme(theme.id, { image_url: null }),
+    mutationFn: () => clearThemeImage(theme.id),
     onSuccess: (updated) => {
       queryClient.setQueryData(["themes", theme.id], updated)
       queryClient.invalidateQueries({ queryKey: ["themes"] })
@@ -90,6 +90,9 @@ export function ThemeImagePicker({ theme }: ThemeImagePickerProps) {
       )}
       {commit.error && (
         <p className="text-sm text-destructive">{commit.error.message}</p>
+      )}
+      {clearImage.error && (
+        <p className="text-sm text-destructive">{clearImage.error.message}</p>
       )}
 
       {candidates.length > 0 && (
