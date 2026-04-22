@@ -176,6 +176,7 @@ See `docs/log/README.md` for format and dimensions.
 - **Sidebar digest nav:** Monthly digest links in left sidebar smooth-scroll to digest position in feed (desktop only)
 - **Theme permalinks:** Standalone `/themes/$themeId` pages for sharing individual themes, with hover-visible link icon in the feed
 - **Image uploads:** Upload images/GIFs to Cloudflare R2 via `POST /api/uploads`, insert markdown image syntax into breadcrumbs
+- **AI theme cover images:** Claude (Haiku 4.5) translates theme text into a concrete scene, Flux Schnell renders 4 candidates, writer picks one. Displayed as 56px thumbnails in the feed, 240px on permalinks. Requires `ANTHROPIC_API_KEY` and `REPLICATE_API_TOKEN`.
 
 ## Gotchas (Critical Agent Directives)
 
@@ -238,4 +239,5 @@ The two Flux Schnell pools are unreliable in ways that are inherent to serverles
 - **Data model:** `docs/data-model.md`
 - **Cascade delete patterns:** `docs/solutions/cascade-patterns.md`
 - **Digests (weekly/monthly summaries):** `docs/digests.md`
+- **Theme cover images (Claude → Flux pipeline):** `docs/theme-images.md`
 - **Deployment gotchas:** `docs/solutions/deployment-gotchas.md`
