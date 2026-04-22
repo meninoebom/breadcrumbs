@@ -31,21 +31,17 @@ export function ThemeSection({ theme, variant = "feed" }: ThemeSectionProps) {
 
   return (
     <article id={`theme-${theme.id}`} className="group/theme space-y-3">
-      {theme.image_url && variant === "permalink" && (
+      {theme.image_url && (
         <img
           src={theme.image_url}
           alt=""
-          className="w-60 h-60 rounded object-cover"
+          className={cn(
+            "w-full rounded-lg object-cover",
+            variant === "permalink" ? "aspect-[5/2]" : "aspect-[3/1]",
+          )}
         />
       )}
       <div className="flex items-start gap-3">
-        {theme.image_url && variant === "feed" && (
-          <img
-            src={theme.image_url}
-            alt=""
-            className="w-14 h-14 rounded object-cover flex-shrink-0 mt-0.5"
-          />
-        )}
         <div className="prose prose-sm max-w-none flex-1">
           <Markdown>{theme.body_md}</Markdown>
         </div>
