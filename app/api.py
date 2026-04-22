@@ -19,10 +19,8 @@ from app.db import get_session
 from app.images import (
     ImageCommitError,
     ImageGenerationError,
-    build_theme_prompt,
-    commit_image_to_r2,
-    generate_candidate_images,
-    tags_for_prompt,
+    ThemeImageService,
+    default_theme_image_service,
 )
 from app.models import (
     Breadcrumb,
@@ -267,20 +265,23 @@ class CommitImageRequest(SQLModel):
 def generate_theme_image(
     theme_id: int,
     session: Session = Depends(get_session),
+    service: ThemeImageService = Depends(default_theme_image_service),
     _admin: None = Depends(require_admin),
 ):
     theme = session.get(Theme, theme_id)
     if not theme:
         raise HTTPException(status_code=404, detail="Theme not found")
 
-    prompt = build_theme_prompt(theme, tags_for_prompt(theme))
     try:
-        candidates = generate_candidate_images(prompt)
+        result = service.generate_candidates(
+            theme_body=theme.body_md,
+            tag_names=[t.name for t in theme.tags],
+        )
     except ImageGenerationError as e:
         logger.warning("Image generation failed for theme %d: %s", theme_id, e)
         raise HTTPException(status_code=503, detail=str(e))
 
-    return GenerateImageResponse(prompt=prompt, candidates=candidates)
+    return GenerateImageResponse(prompt=result.prompt, candidates=result.candidates)
 
 
 @router.post("/themes/{theme_id}/image", response_model=ThemePublic)
@@ -288,6 +289,7 @@ def commit_theme_image(
     theme_id: int,
     body: CommitImageRequest,
     session: Session = Depends(get_session),
+    service: ThemeImageService = Depends(default_theme_image_service),
     _admin: None = Depends(require_admin),
 ):
     theme = session.get(Theme, theme_id)
@@ -295,7 +297,7 @@ def commit_theme_image(
         raise HTTPException(status_code=404, detail="Theme not found")
 
     try:
-        theme.image_url = commit_image_to_r2(body.source_url)
+        theme.image_url = service.commit_candidate(body.source_url)
     except ImageCommitError as e:
         logger.warning("Image commit failed for theme %d: %s", theme_id, e)
         raise HTTPException(status_code=400, detail=str(e))

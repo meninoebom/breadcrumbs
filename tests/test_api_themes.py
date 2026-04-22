@@ -267,12 +267,71 @@ def test_delete_theme_not_found(client):
 # ---------- theme cover image endpoints ----------
 
 
-def test_generate_theme_image_not_found(client):
+import pytest
+
+from app.api import app as _fastapi_app
+from app.images import (
+    GenerationResult,
+    ImageCommitError,
+    ImageGenerationError,
+    ThemeImageService,
+    default_theme_image_service,
+)
+
+
+class _FakeService:
+    """Configurable fake that stands in for ThemeImageService in endpoint tests."""
+
+    def __init__(
+        self,
+        *,
+        candidates=None,
+        prompt="a fake prompt",
+        permanent_url="https://cdn.example/saved.webp",
+        generate_error=None,
+        commit_error=None,
+    ):
+        self._candidates = candidates or [f"https://replicate.delivery/x/{i}.webp" for i in range(4)]
+        self._prompt = prompt
+        self._permanent_url = permanent_url
+        self._generate_error = generate_error
+        self._commit_error = commit_error
+
+    def generate_candidates(self, theme_body, tag_names):
+        if self._generate_error:
+            raise self._generate_error
+        return GenerationResult(prompt=self._prompt, candidates=list(self._candidates))
+
+    def commit_candidate(self, source_url):
+        if self._commit_error:
+            raise self._commit_error
+        return self._permanent_url
+
+
+@pytest.fixture(name="fake_image_service")
+def fake_image_service_fixture():
+    """Override default_theme_image_service with a configurable fake."""
+    fake = _FakeService()
+
+    def override():
+        return fake
+
+    _fastapi_app.dependency_overrides[default_theme_image_service] = override
+    yield fake
+    _fastapi_app.dependency_overrides.pop(default_theme_image_service, None)
+
+
+def _swap_fake(new_fake):
+    """Helper to replace the current fake after the fixture is installed."""
+    _fastapi_app.dependency_overrides[default_theme_image_service] = lambda: new_fake
+
+
+def test_generate_theme_image_not_found(client, fake_image_service):
     response = client.post("/api/themes/999/generate-image")
     assert response.status_code == 404
 
 
-def test_commit_theme_image_not_found(client):
+def test_commit_theme_image_not_found(client, fake_image_service):
     response = client.post(
         "/api/themes/999/image",
         json={"source_url": "https://replicate.delivery/x/out.webp"},
@@ -290,7 +349,6 @@ def test_update_theme_cannot_set_image_url_via_put(client):
     r = client.post("/api/themes", json={"body_md": "Theme"})
     theme_id = r.json()["id"]
 
-    # Pydantic accepts the field on input but the whitelist rejects it.
     response = client.put(
         f"/api/themes/{theme_id}", json={"image_url": "https://evil.example/x.png"}
     )
@@ -298,65 +356,48 @@ def test_update_theme_cannot_set_image_url_via_put(client):
     assert "image_url" in response.json()["detail"]
 
 
-def test_generate_theme_image_missing_token(client, monkeypatch):
-    monkeypatch.delenv("REPLICATE_API_TOKEN", raising=False)
-    r = client.post("/api/themes", json={"body_md": "Theme"})
-    theme_id = r.json()["id"]
-
-    response = client.post(f"/api/themes/{theme_id}/generate-image")
-    assert response.status_code == 503
-    assert "REPLICATE_API_TOKEN" in response.json()["detail"]
-
-
-def test_generate_theme_image_happy_path(client, monkeypatch):
-    monkeypatch.setenv("REPLICATE_API_TOKEN", "fake-token")
-    fake_urls = [f"https://replicate.delivery/x/out-{i}.webp" for i in range(4)]
-    monkeypatch.setattr("app.images.replicate.run", lambda *a, **k: fake_urls)
-
+def test_generate_theme_image_happy_path(client, fake_image_service):
     r = client.post(
         "/api/themes",
-        json={"body_md": "On the texture of an afternoon", "tags": [{"name": "slowness"}]},
+        json={"body_md": "On slowness", "tags": [{"name": "quiet"}]},
     )
     theme_id = r.json()["id"]
 
     response = client.post(f"/api/themes/{theme_id}/generate-image")
     assert response.status_code == 200
     body = response.json()
-    assert body["candidates"] == fake_urls
-    assert "On the texture of an afternoon" in body["prompt"]
-    assert "Mood draws from: slowness" in body["prompt"]
+    assert body["prompt"] == "a fake prompt"
+    assert len(body["candidates"]) == 4
 
 
-def test_commit_theme_image_rejects_non_replicate_host(client):
-    r = client.post("/api/themes", json={"body_md": "Theme"})
-    theme_id = r.json()["id"]
-
-    response = client.post(
-        f"/api/themes/{theme_id}/image",
-        json={"source_url": "https://evil.example/out.webp"},
-    )
-    assert response.status_code == 400
-    assert "allowlist" in response.json()["detail"]
-
-
-def test_commit_theme_image_rejects_non_https(client):
-    r = client.post("/api/themes", json={"body_md": "Theme"})
-    theme_id = r.json()["id"]
-
-    response = client.post(
-        f"/api/themes/{theme_id}/image",
-        json={"source_url": "http://replicate.delivery/x/out.webp"},
-    )
-    assert response.status_code == 400
+def test_generate_theme_image_maps_generation_errors_to_503(client):
+    _swap_fake(_FakeService(generate_error=ImageGenerationError("REPLICATE_API_TOKEN is not set")))
+    try:
+        r = client.post("/api/themes", json={"body_md": "Theme"})
+        theme_id = r.json()["id"]
+        response = client.post(f"/api/themes/{theme_id}/generate-image")
+        assert response.status_code == 503
+        assert "REPLICATE_API_TOKEN" in response.json()["detail"]
+    finally:
+        _fastapi_app.dependency_overrides.pop(default_theme_image_service, None)
 
 
-def test_commit_theme_image_happy_path(client, monkeypatch, session):
-    """Mock commit_image_to_r2 at the api seam to avoid network + R2."""
-    monkeypatch.setattr(
-        "app.api.commit_image_to_r2",
-        lambda url: "https://cdn.example/permanent.webp",
-    )
+def test_commit_theme_image_maps_commit_errors_to_400(client):
+    _swap_fake(_FakeService(commit_error=ImageCommitError("host not in allowlist")))
+    try:
+        r = client.post("/api/themes", json={"body_md": "Theme"})
+        theme_id = r.json()["id"]
+        response = client.post(
+            f"/api/themes/{theme_id}/image",
+            json={"source_url": "https://evil.example/out.webp"},
+        )
+        assert response.status_code == 400
+        assert "allowlist" in response.json()["detail"]
+    finally:
+        _fastapi_app.dependency_overrides.pop(default_theme_image_service, None)
 
+
+def test_commit_theme_image_happy_path(client, fake_image_service, session):
     r = client.post("/api/themes", json={"body_md": "Theme"})
     theme_id = r.json()["id"]
 
@@ -365,19 +406,14 @@ def test_commit_theme_image_happy_path(client, monkeypatch, session):
         json={"source_url": "https://replicate.delivery/x/out.webp"},
     )
     assert response.status_code == 200
-    assert response.json()["image_url"] == "https://cdn.example/permanent.webp"
+    assert response.json()["image_url"] == "https://cdn.example/saved.webp"
 
-    # Persisted on the model.
     session.expire_all()
     refreshed = session.get(Theme, theme_id)
-    assert refreshed.image_url == "https://cdn.example/permanent.webp"
+    assert refreshed.image_url == "https://cdn.example/saved.webp"
 
 
-def test_clear_theme_image_unsets_field(client, monkeypatch, session):
-    monkeypatch.setattr(
-        "app.api.commit_image_to_r2",
-        lambda url: "https://cdn.example/permanent.webp",
-    )
+def test_clear_theme_image_unsets_field(client, fake_image_service, session):
     r = client.post("/api/themes", json={"body_md": "Theme"})
     theme_id = r.json()["id"]
     client.post(
