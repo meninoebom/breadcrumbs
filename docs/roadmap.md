@@ -15,6 +15,7 @@
 - **Monthly Digests** — Progressive summarization (monthly summaries generated from weekly summaries), DigestType enum (weekly/monthly), scheduler job on 1st of month, AI-generated indicator (sparkles icon) on all summary cards
 - **Navigation & Permalinks** — Sidebar digest nav (monthly digest links with smooth-scroll), theme permalink pages (`/themes/$themeId`), hover-visible permalink icons on themes, DOM anchor IDs on all feed items
 - **Image Uploads** — Upload images/GIFs to Cloudflare R2 via writer dashboard, markdown image syntax inserted into breadcrumbs
+- **Theme Cover Images** — AI-generated cover images per theme via a Claude → Flux pipeline: Haiku 4.5 translates abstract theme text into a concrete scene, Flux Schnell renders it. Writer picks from a grid of 4, selected image is re-uploaded to R2 under an SSRF-guarded allowlist. Displayed as 56px thumbnails in the feed and 240px on permalink pages. DI-driven architecture (`app/images/` package) keeps providers swappable.
 
 ## Up Next
 
