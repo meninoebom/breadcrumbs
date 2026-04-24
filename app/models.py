@@ -269,6 +269,14 @@ class DigestCreate(SQLModel, table=False):
     period_end: date
 
 
+class MonthSummary(SQLModel, table=False):
+    """Summary of a calendar month rendered as a collapsed card in the feed."""
+    year: int
+    month: int
+    theme_count: int
+    monthly_digest: Optional[DigestPublic] = None
+
+
 # ---------- subscribers ----------
 
 

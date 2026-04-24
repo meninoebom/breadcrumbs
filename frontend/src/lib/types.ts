@@ -39,6 +39,8 @@ export interface TagWithCount extends TagPublic {
 export interface StreamSearch {
   tag?: string
   q?: string
+  /** Comma-separated YYYY-MM keys of expanded past months. */
+  open?: string
 }
 
 /** Input for POST /themes */
@@ -80,4 +82,12 @@ export interface DigestPublic {
   status: "draft" | "published" | "sent"
   sent_at: string | null
   created_at: string
+}
+
+/** A past calendar month rendered collapsed in the feed. */
+export interface MonthSummary {
+  year: number
+  month: number // 1-12
+  theme_count: number
+  monthly_digest: DigestPublic | null
 }

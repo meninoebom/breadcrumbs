@@ -3,6 +3,7 @@ import os
 import re
 import uuid
 from contextlib import asynccontextmanager
+from datetime import date, datetime, time, timezone
 from pathlib import Path
 from typing import List, Optional
 
@@ -16,6 +17,7 @@ from sqlmodel import Session, SQLModel, col, func, or_, select
 
 from app.auth import create_access_token, require_admin, verify_admin_password
 from app.db import get_session
+from app.feed import months_to_collapse
 from app.images import (
     ImageCommitError,
     ImageGenerationError,
@@ -27,6 +29,10 @@ from app.models import (
     BreadcrumbBase,
     BreadcrumbCreateInput,
     BreadcrumbPublic,
+    Digest,
+    DigestPublic,
+    DigestType,
+    MonthSummary,
     Tag,
     TagCreate,
     TagWithCount,
@@ -164,13 +170,29 @@ def create_theme(
     return theme
 
 
+def _parse_month(month: str) -> tuple[date, date]:
+    """Return (start, next_month_start) for a YYYY-MM string."""
+    try:
+        year_i, month_i = (int(x) for x in month.split("-"))
+        start = date(year_i, month_i, 1)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="month must be YYYY-MM")
+    if month_i == 12:
+        end = date(year_i + 1, 1, 1)
+    else:
+        end = date(year_i, month_i + 1, 1)
+    return start, end
+
+
 @router.get("/themes", response_model=list[ThemePublic])
 def list_themes(
     session: Session = Depends(get_session),
     visibility: Optional[Visibility] = None,
     tag: Optional[str] = None,
     q: Optional[str] = None,
-    limit: int = Query(default=20, ge=1, le=100),
+    since: Optional[date] = None,
+    month: Optional[str] = None,
+    limit: int = Query(default=20, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
 ):
     statement = select(Theme)
@@ -192,11 +214,79 @@ def list_themes(
             )
         )
 
+    if since is not None:
+        since_dt = datetime.combine(since, time.min, tzinfo=timezone.utc)
+        statement = statement.where(Theme.created_at >= since_dt)
+
+    if month is not None:
+        month_start, month_end = _parse_month(month)
+        start_dt = datetime.combine(month_start, time.min, tzinfo=timezone.utc)
+        end_dt = datetime.combine(month_end, time.min, tzinfo=timezone.utc)
+        statement = statement.where(Theme.created_at >= start_dt).where(
+            Theme.created_at < end_dt
+        )
+
     statement = statement.order_by(col(Theme.created_at).desc())
-    statement = statement.offset(offset).limit(limit)
+
+    # Scoped filters naturally bound their result sets; only paginate the
+    # unscoped "give me everything" call so we don't silently truncate
+    # a tag/search/month/since query.
+    is_scoped = any(v is not None for v in (tag, q, since, month))
+    if not is_scoped:
+        statement = statement.offset(offset).limit(limit)
 
     themes = session.exec(statement).all()
     return themes
+
+
+@router.get("/months", response_model=list[MonthSummary])
+def list_months(session: Session = Depends(get_session)):
+    """List past calendar months that should render as collapsed cards.
+
+    A month is included iff every published theme in it falls outside the
+    31-day rolling expanded window. Each entry includes theme count and the
+    monthly digest covering that month (if one exists).
+    """
+    today = datetime.now(timezone.utc).date()
+
+    theme_rows = session.exec(
+        select(Theme.created_at).where(Theme.visibility == Visibility.published)
+    ).all()
+    theme_dates = [dt.date() for dt in theme_rows]
+
+    collapsed = months_to_collapse(today, theme_dates)
+    if not collapsed:
+        return []
+
+    # Count themes per (year, month) once.
+    counts: dict[tuple[int, int], int] = {}
+    for d in theme_dates:
+        key = (d.year, d.month)
+        counts[key] = counts.get(key, 0) + 1
+
+    # Fetch any monthly digest whose period_start lies in one of the collapsed
+    # months in a single query, then index by (year, month).
+    monthly_digests = session.exec(
+        select(Digest).where(Digest.digest_type == DigestType.monthly)
+    ).all()
+    digest_by_month: dict[tuple[int, int], Digest] = {}
+    for digest in monthly_digests:
+        key = (digest.period_start.year, digest.period_start.month)
+        digest_by_month[key] = digest
+
+    return [
+        MonthSummary(
+            year=year,
+            month=month,
+            theme_count=counts.get((year, month), 0),
+            monthly_digest=(
+                DigestPublic.model_validate(digest_by_month[(year, month)], from_attributes=True)
+                if (year, month) in digest_by_month
+                else None
+            ),
+        )
+        for year, month in collapsed
+    ]
 
 
 @router.get("/themes/{theme_id}", response_model=ThemePublic)
