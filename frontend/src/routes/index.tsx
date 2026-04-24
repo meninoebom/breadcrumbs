@@ -1,84 +1,105 @@
-import { createFileRoute, Link } from "@tanstack/react-router"
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router"
 import { useQuery } from "@tanstack/react-query"
 import { X } from "lucide-react"
 import { ThemeSection } from "@/components/theme-section"
 import { TagBar } from "@/components/tag-bar"
 import { StreamSkeleton } from "@/components/stream-skeleton"
 import { WeeklySummary } from "@/components/weekly-summary"
+import { CollapsedMonthCard } from "@/components/collapsed-month-card"
 import { DigestNav } from "@/components/digest-nav"
-import { fetchDigests, fetchThemes } from "@/lib/api"
-import type { DigestPublic, StreamSearch, ThemePublic } from "@/lib/types"
-import { dateKey, formatDateHeading } from "@/lib/utils"
+import { fetchDigests, fetchMonths, fetchThemes } from "@/lib/api"
+import { buildFeed } from "@/lib/feed"
+import type { MonthSummary, StreamSearch } from "@/lib/types"
+import { formatDateHeading } from "@/lib/utils"
+
+const EXPANDED_WINDOW_DAYS = 31
 
 export const Route = createFileRoute("/")({
   component: ReaderStream,
   validateSearch: (search: Record<string, unknown>): StreamSearch => ({
     tag: typeof search.tag === "string" ? search.tag : undefined,
     q: typeof search.q === "string" ? search.q : undefined,
+    open: typeof search.open === "string" ? search.open : undefined,
   }),
 })
 
-type FeedItem =
-  | { kind: "date-group"; key: string; date: string; themes: ThemePublic[] }
-  | { kind: "weekly-summary"; key: string; date: string; digest: DigestPublic }
+function rollingCutoffDate(): string {
+  const d = new Date()
+  d.setUTCDate(d.getUTCDate() - EXPANDED_WINDOW_DAYS)
+  return d.toISOString().slice(0, 10)
+}
 
 /**
- * Merge date-grouped themes and weekly digests into a single
- * chronologically sorted feed (newest first).
+ * The earliest date whose themes belong in the expanded feed.
+ *
+ * If any months are collapsed, the expanded region starts on day 1 of the
+ * month immediately after the newest collapsed month. This keeps months
+ * that straddle the 31-day window fully visible (e.g. themes from earlier
+ * in March when today is late April).
  */
-function buildFeed(themes: ThemePublic[], digests: DigestPublic[]): FeedItem[] {
-  const items: FeedItem[] = []
-
-  // Group themes by date
-  const groups = new Map<string, ThemePublic[]>()
-  for (const theme of themes) {
-    const key = dateKey(theme.created_at)
-    const list = groups.get(key)
-    if (list) list.push(theme)
-    else groups.set(key, [theme])
-  }
-
-  for (const [key, groupThemes] of groups) {
-    items.push({
-      kind: "date-group",
-      key,
-      date: key,
-      themes: groupThemes,
-    })
-  }
-
-  // Add digests keyed by their period_end (so they appear after that week's content)
-  for (const digest of digests) {
-    items.push({
-      kind: "weekly-summary",
-      key: `summary-${digest.id}`,
-      date: digest.period_end,
-      digest,
-    })
-  }
-
-  // Sort newest first
-  items.sort((a, b) => b.date.localeCompare(a.date))
-
-  return items
+function expandedSinceDate(months: MonthSummary[]): string {
+  if (months.length === 0) return rollingCutoffDate()
+  // months is sorted newest-first from the API. JS Date handles Dec→Jan.
+  const newest = months[0]
+  return new Date(Date.UTC(newest.year, newest.month, 1))
+    .toISOString()
+    .slice(0, 10)
 }
 
 function ReaderStream() {
-  const { tag, q } = Route.useSearch()
+  const { tag, q, open } = Route.useSearch()
+  const navigate = useNavigate()
+  const isFiltered = Boolean(tag || q)
 
-  const { data: themes, isLoading, error } = useQuery({
-    queryKey: ["themes", { visibility: "published", tag, q }],
-    queryFn: () => fetchThemes({ visibility: "published", tag, q }),
+  const { data: months } = useQuery({
+    queryKey: ["months"],
+    queryFn: () => fetchMonths(),
+    enabled: !isFiltered,
   })
 
-  // Only fetch digests when not filtering
+  // `since` depends on the months response: expanded feed starts on the
+  // first day after the newest collapsed month. Wait for months before
+  // firing the themes query (unless we're in a filtered view, which
+  // ignores the window entirely).
+  const since = months === undefined ? undefined : expandedSinceDate(months)
+
+  const { data: themes, isLoading, error } = useQuery({
+    queryKey: isFiltered
+      ? ["themes", { visibility: "published", tag, q }]
+      : ["themes", { visibility: "published", since }],
+    queryFn: () =>
+      fetchThemes(
+        isFiltered
+          ? { visibility: "published", tag, q }
+          : { visibility: "published", since },
+      ),
+    enabled: isFiltered || since !== undefined,
+  })
+
   const { data: digests } = useQuery({
     queryKey: ["digests"],
     queryFn: () => fetchDigests(),
-    enabled: !tag && !q,
+    enabled: !isFiltered,
   })
 
-  const feed = buildFeed(themes ?? [], digests ?? [])
+  const openKeys = new Set(open?.split(",").filter(Boolean) ?? [])
+  const collapsedMonthKeys = new Set(
+    (months ?? []).map((m) => monthKey(m)),
+  )
+  const feed = buildFeed(themes ?? [], digests ?? [], collapsedMonthKeys)
+
+  const toggleMonth = (key: string) => {
+    const next = new Set(openKeys)
+    if (next.has(key)) next.delete(key)
+    else next.add(key)
+    navigate({
+      to: "/",
+      search: (prev) => ({
+        ...prev,
+        open: next.size === 0 ? undefined : Array.from(next).join(","),
+      }),
+    })
+  }
 
   return (
     <div className="flex flex-col md:flex-row gap-6 md:gap-10">
@@ -97,18 +118,24 @@ function ReaderStream() {
       </aside>
 
       <div className="flex-1 min-w-0 space-y-6">
-        {(tag || q) && <ActiveFilters tag={tag} q={q} />}
+        {isFiltered && <ActiveFilters tag={tag} q={q} />}
 
         {isLoading && <StreamSkeleton />}
 
         {error && <p className="text-destructive">Error: {error.message}</p>}
 
-        {themes && themes.length === 0 && (
+        {themes && themes.length === 0 && !isFiltered && (!months || months.length === 0) && (
           <div className="py-12 text-center space-y-2">
             <p className="text-muted-foreground italic">
-              {tag || q
-                ? "No breadcrumbs along this path."
-                : "The trail is quiet. No breadcrumbs have been dropped here yet."}
+              The trail is quiet. No breadcrumbs have been dropped here yet.
+            </p>
+          </div>
+        )}
+
+        {themes && themes.length === 0 && isFiltered && (
+          <div className="py-12 text-center space-y-2">
+            <p className="text-muted-foreground italic">
+              No breadcrumbs along this path.
             </p>
           </div>
         )}
@@ -133,9 +160,30 @@ function ReaderStream() {
             )}
           </div>
         )}
+
+        {!isFiltered && months && months.length > 0 && (
+          <div className="space-y-4 pt-4">
+            {months.map((m) => {
+              const key = monthKey(m)
+              return (
+                <CollapsedMonthCard
+                  key={key}
+                  month={m}
+                  digests={digests ?? []}
+                  isOpen={openKeys.has(key)}
+                  onToggle={() => toggleMonth(key)}
+                />
+              )
+            })}
+          </div>
+        )}
       </div>
     </div>
   )
+}
+
+function monthKey(m: MonthSummary): string {
+  return `${m.year}-${String(m.month).padStart(2, "0")}`
 }
 
 function ActiveFilters({ tag, q }: { tag?: string; q?: string }) {

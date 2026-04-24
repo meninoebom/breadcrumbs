@@ -1,4 +1,5 @@
 import { useMemo } from "react"
+import { useNavigate } from "@tanstack/react-router"
 import type { DigestPublic } from "@/lib/types"
 
 function formatMonthLabel(periodStart: string): string {
@@ -8,6 +9,7 @@ function formatMonthLabel(periodStart: string): string {
 }
 
 export function DigestNav({ digests }: { digests: DigestPublic[] }) {
+  const navigate = useNavigate()
   const monthly = useMemo(
     () =>
       digests
@@ -24,22 +26,34 @@ export function DigestNav({ digests }: { digests: DigestPublic[] }) {
         Monthly Digests
       </h3>
       <nav className="flex flex-col gap-1">
-        {monthly.map((digest) => (
-          <a
-            key={digest.id}
-            href={`#digest-${digest.id}`}
-            onClick={(e) => {
-              const target = document.getElementById(`digest-${digest.id}`)
-              if (target) {
+        {monthly.map((digest) => {
+          const monthKey = digest.period_start.slice(0, 7) // YYYY-MM
+          return (
+            <a
+              key={digest.id}
+              href={`#month-${monthKey}`}
+              onClick={(e) => {
                 e.preventDefault()
-                target.scrollIntoView({ behavior: "smooth" })
-              }
-            }}
-            className="text-sm text-muted-foreground/70 hover:text-foreground transition-colors"
-          >
-            {formatMonthLabel(digest.period_start)}
-          </a>
-        ))}
+                // Clear any tag/q filter and ensure this month is open, then
+                // scroll after the card renders.
+                navigate({
+                  to: "/",
+                  search: { open: monthKey },
+                }).then(() => {
+                  requestAnimationFrame(() => {
+                    const target =
+                      document.getElementById(`month-${monthKey}`) ??
+                      document.getElementById(`digest-${digest.id}`)
+                    target?.scrollIntoView({ behavior: "smooth" })
+                  })
+                })
+              }}
+              className="text-sm text-muted-foreground/70 hover:text-foreground transition-colors"
+            >
+              {formatMonthLabel(digest.period_start)}
+            </a>
+          )
+        })}
       </nav>
     </div>
   )

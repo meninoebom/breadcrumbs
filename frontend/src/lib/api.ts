@@ -5,6 +5,7 @@ import type {
   DigestPublic,
   DigestType,
   GenerateImageResponse,
+  MonthSummary,
   TagWithCount,
   ThemeCreateInput,
   ThemePublic,
@@ -22,6 +23,8 @@ export interface ThemeSearchParams {
   visibility?: Visibility
   tag?: string
   q?: string
+  since?: string // YYYY-MM-DD
+  month?: string // YYYY-MM
   limit?: number
   offset?: number
 }
@@ -86,6 +89,10 @@ export function fetchBreadcrumbs(
 
 export function fetchTags(): Promise<TagWithCount[]> {
   return apiFetch("/api/tags", "tags")
+}
+
+export function fetchMonths(): Promise<MonthSummary[]> {
+  return apiFetch("/api/months", "months")
 }
 
 // ---------------------------------------------------------------------------
