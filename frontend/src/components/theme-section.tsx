@@ -2,7 +2,6 @@ import { useMemo } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"
 import Markdown from "react-markdown"
-import { LinkIcon } from "lucide-react"
 import { fetchBreadcrumbs } from "@/lib/api"
 import { useScrollReveal } from "@/hooks/use-scroll-reveal"
 import { buildTree, type BreadcrumbNode } from "@/lib/tree"
@@ -29,30 +28,38 @@ export function ThemeSection({ theme, variant = "feed" }: ThemeSectionProps) {
     [breadcrumbs],
   )
 
+  const isFeed = variant === "feed"
+
   return (
-    <article id={`theme-${theme.id}`} className="group/theme space-y-3">
-      {theme.image_url && (
-        <img
-          src={theme.image_url}
-          alt=""
+    <article id={`theme-${theme.id}`} className="space-y-3">
+      <div className="relative">
+        {theme.image_url && (
+          <img
+            src={theme.image_url}
+            alt=""
+            className={cn(
+              "w-full rounded-lg object-cover",
+              variant === "permalink" ? "aspect-[5/2]" : "aspect-[3/1]",
+            )}
+          />
+        )}
+        <div
           className={cn(
-            "w-full rounded-lg object-cover",
-            variant === "permalink" ? "aspect-[5/2]" : "aspect-[3/1]",
+            "prose prose-sm max-w-none",
+            theme.image_url && "mt-3",
+            isFeed && "[&_a]:relative [&_a]:z-10",
           )}
-        />
-      )}
-      <div className="flex items-start gap-3">
-        <div className="prose prose-sm max-w-none flex-1">
+        >
           <Markdown>{theme.body_md}</Markdown>
         </div>
-        <Link
-          to="/themes/$themeId"
-          params={{ themeId: String(theme.id) }}
-          className="mt-1 opacity-0 group-hover/theme:opacity-100 transition-opacity text-muted-foreground/40 hover:text-muted-foreground"
-          title="Permalink"
-        >
-          <LinkIcon className="h-3.5 w-3.5" />
-        </Link>
+        {isFeed && (
+          <Link
+            to="/themes/$themeId"
+            params={{ themeId: String(theme.id) }}
+            className="absolute inset-0 z-0 rounded-lg"
+            aria-label="View theme permalink"
+          />
+        )}
       </div>
 
       {isLoading && <BreadcrumbSkeleton />}
