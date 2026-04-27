@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { Plus, X } from "lucide-react"
+import { Plus, Sparkles, X } from "lucide-react"
 import { fetchTags } from "@/lib/api"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
@@ -12,6 +12,7 @@ interface TagInputProps {
   id?: string
   disabled?: boolean
   className?: string
+  aiSuggestedTags?: string[]
 }
 
 /** Normalize a raw tag string: trim, lowercase, whitespace to hyphens. */
@@ -39,7 +40,12 @@ export function TagInput({
   id,
   disabled,
   className,
+  aiSuggestedTags,
 }: TagInputProps) {
+  const aiSuggestedSet = useMemo(
+    () => new Set(aiSuggestedTags ?? []),
+    [aiSuggestedTags],
+  )
   const [inputValue, setInputValue] = useState("")
   const [isOpen, setIsOpen] = useState(false)
   const [highlightedIndex, setHighlightedIndex] = useState(-1)
@@ -235,6 +241,9 @@ export function TagInput({
               !existingTagNames.has(tag) && "border-dashed",
             )}
           >
+            {aiSuggestedSet.has(tag) && (
+              <Sparkles className="size-3 text-muted-foreground" aria-label="AI suggested" />
+            )}
             {tag}
             <button
               type="button"

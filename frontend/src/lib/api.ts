@@ -321,6 +321,13 @@ export async function uploadImage(file: File): Promise<{ url: string }> {
   return res.json()
 }
 
+export function suggestTags(themeId: number): Promise<{ tags: string[] }> {
+  return apiMutate(`/api/themes/${themeId}/suggest-tags`, {
+    method: "POST",
+    label: "suggest tags",
+  })
+}
+
 export function subscribe(email: string): Promise<{ message: string }> {
   return apiMutate("/api/subscribers/subscribe", {
     method: "POST",
