@@ -15,9 +15,12 @@ from sqlalchemy.exc import DataError, IntegrityError, OperationalError
 from starlette.requests import Request
 from sqlmodel import Session, SQLModel, col, func, or_, select
 
+import anthropic as anthropic_lib
+
 from app.auth import create_access_token, require_admin, verify_admin_password
 from app.db import get_session
 from app.feed import months_to_collapse
+from app.tag_suggester import suggest_tags
 from app.images import (
     ImageCommitError,
     ImageGenerationError,
@@ -415,6 +418,34 @@ def clear_theme_image(
     session.flush()
     session.refresh(theme)
     return theme
+
+
+# ---------- tag suggestion endpoint ----------
+
+
+class SuggestTagsResponse(SQLModel, table=False):
+    tags: List[str]
+
+
+@router.post("/themes/{theme_id}/suggest-tags", response_model=SuggestTagsResponse)
+def suggest_theme_tags(
+    theme_id: int,
+    session: Session = Depends(get_session),
+    _admin: None = Depends(require_admin),
+):
+    theme = session.get(Theme, theme_id)
+    if not theme:
+        raise HTTPException(status_code=404, detail="Theme not found")
+
+    existing_tag_names = [t.name for t in session.exec(select(Tag)).all()]
+
+    try:
+        tags = suggest_tags(theme.body_md, existing_tag_names)
+    except anthropic_lib.APIError as e:
+        logger.warning("Tag suggestion failed for theme %d: %s", theme_id, e)
+        raise HTTPException(status_code=503, detail="Tag suggestion service unavailable")
+
+    return SuggestTagsResponse(tags=tags)
 
 
 # ---------- breadcrumb endpoints ----------
