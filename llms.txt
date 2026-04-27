@@ -44,18 +44,25 @@ Breadcrumbs is a web application for capturing and organizing stream-of-consciou
 ### Key Components
 
 **Backend API:**
-- `/api/themes` - CRUD operations for themes (title, description, tags, visibility)
+- `/api/themes` - CRUD operations for themes (body, tags, visibility)
 - `/api/themes/{id}/breadcrumbs` - CRUD operations for breadcrumbs within a theme
+- `/api/themes/{id}/suggest-tags` - AI-powered tag suggestion (Claude Haiku, auth required)
+- `/api/themes/{id}/generate-image` / `/api/themes/{id}/image` - AI cover image generation (Flux Schnell via Replicate, stored in R2)
 - `/api/tags` - Tag management and browsing
-- Full-text search endpoint for filtering themes by title, content, or tags
-- Authentication endpoints for writer access
+- `/api/months` - Calendar months for rolling-window feed navigation
+- `/api/digests` - Weekly/monthly AI-generated summary digests
+- `/api/uploads` - Image/GIF upload to Cloudflare R2
+- Full-text search and tag/month filtering on `/api/themes`
+- JWT authentication endpoints for writer access
 
 **Frontend Views:**
-- **Stream View (Reader):** Continuous scrolling display of all published themes and their breadcrumbs
-- **Theme Editor (Writer):** Create/edit themes, add breadcrumbs, manage tags, publish/draft toggle
-- **Tag Browser:** Browse all tags alphabetically, filter themes by tag
-- **Search:** Full-text search across theme titles, breadcrumb content, and tags
-- **Writer Dashboard:** View all themes (draft + published), edit existing themes
+- **Stream View (Reader):** Rolling-window feed of published themes with collapsible past months
+- **Theme Editor (Writer):** Create/edit themes, add breadcrumbs, manage tags, publish/draft toggle, AI cover image picker
+- **Tag Browser:** Browse all tags with usage-based opacity gradient, filter themes by tag
+- **Search:** Full-text search across theme content and tags
+- **Writer Dashboard:** All themes (draft + published), digest management
+- **Digest Pages:** Weekly/monthly AI summary detail pages
+- **Theme Permalinks:** Standalone `/themes/$themeId` pages for sharing
 
 **Data Models:**
 - **Theme:** Topical container with title, optional description, visibility (draft/published), and tags

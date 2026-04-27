@@ -112,7 +112,8 @@ See `docs/log/README.md` for format and dimensions.
 - **Timestamps:** Every breadcrumb has a timestamp
 - **Markdown rendering:** Full markdown support for formatting
 - **Mobile responsive:** Horizontal scrollable tag pills on mobile, stacked header, touch-friendly targets
-- **Agent authoring:** OpenClaw skill enables content creation via Telegram (voice or text input)
+- **Agent authoring:** OpenClaw skill enables content creation via Telegram (voice or text input) — to be replaced by a self-contained agent with SQLite + vector memory (see issue #40)
+- **AI tag suggestions:** After theme creation, `POST /api/themes/{id}/suggest-tags` returns 3–5 Claude Haiku-generated tags; two-phase create dialog pre-fills chip input with sparkle (✨) indicators per AI-suggested tag
 - **Sidebar digest nav:** Monthly digest links in left sidebar smooth-scroll to digest position in feed (desktop only)
 - **Theme permalinks:** Standalone `/themes/$themeId` pages for sharing individual themes, with hover-visible link icon in the feed
 - **Image uploads:** Upload images/GIFs to Cloudflare R2 via `POST /api/uploads`, insert markdown image syntax into breadcrumbs

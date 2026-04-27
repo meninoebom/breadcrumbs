@@ -15,15 +15,18 @@
 - **Monthly Digests** — Progressive summarization (monthly summaries generated from weekly summaries), DigestType enum (weekly/monthly), scheduler job on 1st of month, AI-generated indicator (sparkles icon) on all summary cards
 - **Navigation & Permalinks** — Sidebar digest nav (monthly digest links with smooth-scroll), theme permalink pages (`/themes/$themeId`), hover-visible permalink icons on themes, DOM anchor IDs on all feed items
 - **Image Uploads** — Upload images/GIFs to Cloudflare R2 via writer dashboard, markdown image syntax inserted into breadcrumbs
+- **AI Tag Suggestions** — After theme creation, Claude Haiku suggests 3–5 reuse-aware tags; two-phase create dialog pre-fills the chip input with sparkle indicators; writer can edit before saving
 
 ## Up Next
 
-### Phase 4: AI Tag Suggestions
+### Phase 5: Tag Reordering
 
-Auto-generate tags when a theme is written. After saving a theme, an AI call suggests 3–5 tags that auto-populate the tag input — writer removes unwanted ones before saving. Uses Claude API (Haiku model) with awareness of existing tags to prefer reuse.
+Drag-to-reorder tags in both the sidebar and mobile pill strip. Order stored server-side so readers see the same ordering across all devices.
 
-- **4a.** Backend endpoint: `POST /api/themes/{id}/suggest-tags` (auth required)
-- **4b.** Frontend: call suggest-tags after theme creation, pre-fill tag chip input with loading state
+- New `position` column on the Tag model with migration
+- `PATCH /api/tags/reorder` endpoint (auth required)
+- dnd-kit sortable containers in sidebar and tag bar
+- Feed and tag list respect server-side sort order
 
 ### Future
 
@@ -34,8 +37,8 @@ Auto-generate tags when a theme is written. After saving a theme, an AI call sug
 
 ### Backlog
 
-#### Always-On Agent
-Run OpenClaw on a VPS or Mac Mini so the Telegram bot works when the laptop is closed. Currently agent only responds when the local machine is awake.
+#### Always-On Blog Authoring Agent
+A self-contained Telegram bot (not OpenClaw) with persistent memory via SQLite + vector embeddings. Responds 24/7 from a VPS or Mac Mini. Tools: create theme, add breadcrumb, list recent themes, semantic search over content. Hosting TBD.
 
 #### Tag Reordering
 Drag-to-reorder tags in the sidebar and mobile pill strip. The horizontal pill layout is already compatible with dnd-kit sortable containers.
