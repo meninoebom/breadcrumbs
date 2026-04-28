@@ -140,11 +140,17 @@ export function TagBar({ activeTag, horizontal = false }: TagBarProps) {
     const newIndex = sortedTags.findIndex((t) => t.id === over.id)
     const reordered = arrayMove(sortedTags, oldIndex, newIndex)
     const newIds = reordered.map((t) => t.id)
+    const prevOrder = localOrder
 
     setLocalOrder(newIds)
-    reorderTags(newIds).then(() => {
-      queryClient.invalidateQueries({ queryKey: ["tags"] })
-    })
+    reorderTags(newIds)
+      .then(() => {
+        setLocalOrder(null) // let server order take over after sync
+        queryClient.invalidateQueries({ queryKey: ["tags"] })
+      })
+      .catch(() => {
+        setLocalOrder(prevOrder) // roll back optimistic update on failure
+      })
   }
 
   function cycleSortOrder() {
@@ -409,6 +415,18 @@ function ToggleButton({
   )
 }
 
+const NEXT_SORT_LABEL: Record<TagSortOrder, string> = {
+  custom: "# usage",  // custom → usage
+  usage: "A→Z",       // usage → alpha
+  alpha: "↕ custom",  // alpha → custom
+}
+
+const NEXT_SORT_TITLE: Record<TagSortOrder, string> = {
+  custom: "Switch to by usage",
+  usage: "Switch to alphabetical",
+  alpha: "Switch to custom order",
+}
+
 function SortToggle({
   sortOrder,
   onCycle,
@@ -416,21 +434,14 @@ function SortToggle({
   sortOrder: TagSortOrder
   onCycle: () => void
 }) {
-  const label = sortOrder === "custom" ? "A→Z" : sortOrder === "usage" ? "A→Z" : "# usage"
-  const title =
-    sortOrder === "custom"
-      ? "Switch to alphabetical"
-      : sortOrder === "usage"
-        ? "Switch to alphabetical"
-        : "Switch to custom order"
   return (
     <button
       type="button"
       onClick={onCycle}
       className="text-[11px] text-muted-foreground/50 hover:text-muted-foreground cursor-pointer transition-colors"
-      title={title}
+      title={NEXT_SORT_TITLE[sortOrder]}
     >
-      {label}
+      {NEXT_SORT_LABEL[sortOrder]}
     </button>
   )
 }

@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, FastAPI, File, HTTPException, Query, Upl
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import nulls_last
 from sqlalchemy.exc import DataError, IntegrityError, OperationalError
 from starlette.requests import Request
 from sqlmodel import Session, SQLModel, col, func, or_, select
@@ -105,14 +106,12 @@ def escape_like(s: str) -> str:
     return re.sub(r"([%_\\])", r"\\\1", s)
 
 
-def _next_tag_position(session: Session) -> int:
-    """Return the next position value for a new tag (max + 1, or 0 if none)."""
-    result = session.exec(select(func.max(Tag.position))).first()
-    return (result or 0) + 1
-
-
 def get_or_create_tags(session: Session, tag_creates: list[TagCreate]) -> list[Tag]:
     """Find existing tags by normalized name, or create new ones."""
+    # Compute next position once to avoid N+1 and concurrent duplicate positions.
+    max_pos = session.exec(select(func.max(Tag.position))).first() or 0
+    next_pos = max_pos + 1
+
     tags = []
     for tc in tag_creates:
         existing = session.exec(
@@ -121,7 +120,8 @@ def get_or_create_tags(session: Session, tag_creates: list[TagCreate]) -> list[T
         if existing:
             tags.append(existing)
         else:
-            tag = Tag(name=tc.name, position=_next_tag_position(session))
+            tag = Tag(name=tc.name, position=next_pos)
+            next_pos += 1
             session.add(tag)
             try:
                 session.flush()
@@ -574,8 +574,6 @@ def delete_breadcrumb(
 
 @router.get("/tags", response_model=list[TagWithCount])
 def list_tags(session: Session = Depends(get_session)):
-    from sqlalchemy import nulls_last
-
     statement = (
         select(Tag, func.count(ThemeTag.theme_id).label("theme_count"))
         .outerjoin(ThemeTag, Tag.id == ThemeTag.tag_id)
