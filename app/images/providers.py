@@ -77,7 +77,7 @@ class ClaudeVisualizer:
             )
         except anthropic.APIError as e:
             logger.error("Claude visualizer API error: %s", e)
-            raise ImageGenerationError(f"Visualizer error: {e}") from e
+            raise ImageGenerationError(f"Visualizer error: {e.message}") from e
 
         if not response.content:
             raise ImageGenerationError("Visualizer returned empty response")
