@@ -104,10 +104,11 @@ See `docs/log/README.md` for format and dimensions.
 - **Tag-based organization:** Tags applied at theme level for filtering and discovery
 - **Tag usage gradient:** Tags sorted by usage with 5-tier opacity gradient showing relative popularity
 - **Tag chip input:** Typeahead suggestions, comma/Enter to commit, visual chips distinguishing existing vs new tags
+- **Tag drag-to-reorder:** Authenticated writers drag tags in sidebar (desktop) or mobile pill strip to set custom server-side order; `position` int column on Tag; `PATCH /api/tags/reorder` (auth-required); sort cycles custom → usage → alpha; order persists across devices
 - **Draft/publish workflow:** Writers can draft themes before publishing to readers
 - **Authenticated editing:** Writers login to see unpublished themes and edit existing ones
 - **Easy to read:** Continuous stream presentation with clear theme boundaries (not traditional blog articles)
-- **Tag browsing:** Readers browse tags sorted by usage and filter themes by tag
+- **Tag browsing:** Readers browse tags in custom (server-side) order with usage/alpha toggle; filter themes by tag
 - **Search:** Full-text search across theme bodies, breadcrumb content, and tags
 - **Timestamps:** Every breadcrumb has a timestamp
 - **Markdown rendering:** Full markdown support for formatting

@@ -48,7 +48,8 @@ Breadcrumbs is a web application for capturing and organizing stream-of-consciou
 - `/api/themes/{id}/breadcrumbs` - CRUD operations for breadcrumbs within a theme
 - `/api/themes/{id}/suggest-tags` - AI-powered tag suggestion (Claude Haiku, auth required)
 - `/api/themes/{id}/generate-image` / `/api/themes/{id}/image` - AI cover image generation (Flux Schnell via Replicate, stored in R2)
-- `/api/tags` - Tag management and browsing
+- `/api/tags` - Tag listing (ordered by server-side `position`, then name) and browsing
+- `/api/tags/reorder` - PATCH endpoint (auth-required) to set custom tag display order
 - `/api/months` - Calendar months for rolling-window feed navigation
 - `/api/digests` - Weekly/monthly AI-generated summary digests
 - `/api/uploads` - Image/GIF upload to Cloudflare R2
@@ -67,7 +68,7 @@ Breadcrumbs is a web application for capturing and organizing stream-of-consciou
 **Data Models:**
 - **Theme:** Topical container with title, optional description, visibility (draft/published), and tags
 - **Breadcrumb:** Small thought atom (markdown content) that belongs to exactly one theme. Breadcrumbs can nest via optional `parent_id` (self-referential FK). API returns flat list with `parent_id`; clients build tree.
-- **Tag:** Categorization labels with many-to-many relationship to themes
+- **Tag:** Categorization labels with many-to-many relationship to themes. Has an integer `position` field for custom server-side display order; writers drag-reorder via `PATCH /api/tags/reorder` (auth-required).
 - **ThemeTag:** Join table for many-to-many relationship between themes and tags
 
 ## Getting Started
