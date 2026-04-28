@@ -105,6 +105,12 @@ def escape_like(s: str) -> str:
     return re.sub(r"([%_\\])", r"\\\1", s)
 
 
+def _next_tag_position(session: Session) -> int:
+    """Return the next position value for a new tag (max + 1, or 0 if none)."""
+    result = session.exec(select(func.max(Tag.position))).first()
+    return (result or 0) + 1
+
+
 def get_or_create_tags(session: Session, tag_creates: list[TagCreate]) -> list[Tag]:
     """Find existing tags by normalized name, or create new ones."""
     tags = []
@@ -115,7 +121,7 @@ def get_or_create_tags(session: Session, tag_creates: list[TagCreate]) -> list[T
         if existing:
             tags.append(existing)
         else:
-            tag = Tag(name=tc.name)
+            tag = Tag(name=tc.name, position=_next_tag_position(session))
             session.add(tag)
             try:
                 session.flush()
@@ -568,11 +574,13 @@ def delete_breadcrumb(
 
 @router.get("/tags", response_model=list[TagWithCount])
 def list_tags(session: Session = Depends(get_session)):
+    from sqlalchemy import nulls_last
+
     statement = (
         select(Tag, func.count(ThemeTag.theme_id).label("theme_count"))
         .outerjoin(ThemeTag, Tag.id == ThemeTag.tag_id)
         .group_by(Tag.id)
-        .order_by(Tag.name)
+        .order_by(nulls_last(Tag.position), Tag.name)
     )
     results = session.exec(statement).all()
     return [
@@ -592,6 +600,26 @@ def get_themes_by_tag(
     if not tag:
         raise HTTPException(status_code=404, detail="Tag not found")
     return tag.themes
+
+
+class TagReorderRequest(SQLModel, table=False):
+    tag_ids: List[int]
+
+
+@router.patch("/tags/reorder", status_code=200)
+def reorder_tags(
+    body: TagReorderRequest,
+    session: Session = Depends(get_session),
+    _: None = Depends(require_admin),
+):
+    """Assign server-side positions to tags based on the supplied ordered list."""
+    for position, tag_id in enumerate(body.tag_ids):
+        tag = session.get(Tag, tag_id)
+        if tag is not None:
+            tag.position = position
+            session.add(tag)
+    session.commit()
+    return {"ok": True}
 
 
 # ---------- image uploads ----------
