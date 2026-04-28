@@ -328,6 +328,14 @@ export function suggestTags(themeId: number): Promise<{ tags: string[] }> {
   })
 }
 
+export function reorderTags(tagIds: number[]): Promise<{ ok: boolean }> {
+  return apiMutate("/api/tags/reorder", {
+    method: "PATCH",
+    body: { tag_ids: tagIds },
+    label: "reorder tags",
+  })
+}
+
 export function subscribe(email: string): Promise<{ message: string }> {
   return apiMutate("/api/subscribers/subscribe", {
     method: "POST",

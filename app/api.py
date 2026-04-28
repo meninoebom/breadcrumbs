@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, FastAPI, File, HTTPException, Query, Upl
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import nulls_last
 from sqlalchemy.exc import DataError, IntegrityError, OperationalError
 from starlette.requests import Request
 from sqlmodel import Session, SQLModel, col, func, or_, select
@@ -107,6 +108,10 @@ def escape_like(s: str) -> str:
 
 def get_or_create_tags(session: Session, tag_creates: list[TagCreate]) -> list[Tag]:
     """Find existing tags by normalized name, or create new ones."""
+    # Compute next position once to avoid N+1 and concurrent duplicate positions.
+    max_pos = session.exec(select(func.max(Tag.position))).first() or 0
+    next_pos = max_pos + 1
+
     tags = []
     for tc in tag_creates:
         existing = session.exec(
@@ -115,7 +120,8 @@ def get_or_create_tags(session: Session, tag_creates: list[TagCreate]) -> list[T
         if existing:
             tags.append(existing)
         else:
-            tag = Tag(name=tc.name)
+            tag = Tag(name=tc.name, position=next_pos)
+            next_pos += 1
             session.add(tag)
             try:
                 session.flush()
@@ -572,7 +578,7 @@ def list_tags(session: Session = Depends(get_session)):
         select(Tag, func.count(ThemeTag.theme_id).label("theme_count"))
         .outerjoin(ThemeTag, Tag.id == ThemeTag.tag_id)
         .group_by(Tag.id)
-        .order_by(Tag.name)
+        .order_by(nulls_last(Tag.position), Tag.name)
     )
     results = session.exec(statement).all()
     return [
@@ -592,6 +598,26 @@ def get_themes_by_tag(
     if not tag:
         raise HTTPException(status_code=404, detail="Tag not found")
     return tag.themes
+
+
+class TagReorderRequest(SQLModel, table=False):
+    tag_ids: List[int]
+
+
+@router.patch("/tags/reorder", status_code=200)
+def reorder_tags(
+    body: TagReorderRequest,
+    session: Session = Depends(get_session),
+    _: None = Depends(require_admin),
+):
+    """Assign server-side positions to tags based on the supplied ordered list."""
+    for position, tag_id in enumerate(body.tag_ids):
+        tag = session.get(Tag, tag_id)
+        if tag is not None:
+            tag.position = position
+            session.add(tag)
+    session.commit()
+    return {"ok": True}
 
 
 # ---------- image uploads ----------

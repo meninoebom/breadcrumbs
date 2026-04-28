@@ -1,7 +1,27 @@
 import { useMemo, useState } from "react"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"
-import { fetchTags } from "@/lib/api"
+import {
+  DndContext,
+  type DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core"
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+  horizontalListSortingStrategy,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
+import { GripVertical } from "lucide-react"
+import { fetchTags, reorderTags } from "@/lib/api"
+import { isAuthenticated } from "@/lib/auth"
 import type { StreamSearch, TagWithCount } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
@@ -11,14 +31,15 @@ const VISIBLE_COUNT = 15
 const MOBILE_VISIBLE_COUNT = 12
 const SORT_STORAGE_KEY = "breadcrumbs-tag-sort"
 
-type TagSortOrder = "usage" | "alpha"
+type TagSortOrder = "usage" | "alpha" | "custom"
 
 function getStoredSort(): TagSortOrder {
   try {
     const v = localStorage.getItem(SORT_STORAGE_KEY)
-    return v === "alpha" ? "alpha" : "usage"
+    if (v === "alpha" || v === "usage" || v === "custom") return v
+    return "custom"
   } catch {
-    return "usage"
+    return "custom"
   }
 }
 
@@ -61,31 +82,84 @@ function getUsageTier(count: number, maxCount: number): number {
 
 export function TagBar({ activeTag, horizontal = false }: TagBarProps) {
   const [sortOrder, setSortOrder] = useState<TagSortOrder>(getStoredSort)
+  const queryClient = useQueryClient()
 
   const { data: tags, error } = useQuery({
     queryKey: ["tags"],
     queryFn: fetchTags,
   })
 
-  const sortedTags = useMemo(
-    () =>
-      tags?.slice().sort(
-        sortOrder === "usage"
-          ? (a, b) => b.theme_count - a.theme_count || a.name.localeCompare(b.name)
-          : (a, b) => a.name.localeCompare(b.name),
-      ),
-    [tags, sortOrder],
-  )
+  // Local ordered state for optimistic drag reorder
+  const [localOrder, setLocalOrder] = useState<number[] | null>(null)
+
+  const sortedTags = useMemo(() => {
+    if (!tags) return undefined
+    const base = tags.slice()
+
+    if (sortOrder === "custom") {
+      if (localOrder) {
+        const idToTag = new Map(tags.map((t) => [t.id, t]))
+        const ordered = localOrder.flatMap((id) => {
+          const t = idToTag.get(id)
+          return t ? [t] : []
+        })
+        // append any tags not in localOrder (newly created)
+        const inOrder = new Set(localOrder)
+        const rest = base.filter((t) => !inOrder.has(t.id))
+        return [...ordered, ...rest]
+      }
+      return base // server already returned in position order
+    }
+
+    return base.sort(
+      sortOrder === "usage"
+        ? (a, b) => b.theme_count - a.theme_count || a.name.localeCompare(b.name)
+        : (a, b) => a.name.localeCompare(b.name),
+    )
+  }, [tags, sortOrder, localOrder])
 
   const maxCount = useMemo(
     () => sortedTags?.reduce((max, t) => Math.max(max, t.theme_count), 0) ?? 0,
     [sortedTags],
   )
 
-  function toggleSort() {
-    const next = sortOrder === "usage" ? "alpha" : "usage"
+  const canDrag = isAuthenticated() && sortOrder === "custom"
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  )
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id || !sortedTags) return
+
+    const oldIndex = sortedTags.findIndex((t) => t.id === active.id)
+    const newIndex = sortedTags.findIndex((t) => t.id === over.id)
+    const reordered = arrayMove(sortedTags, oldIndex, newIndex)
+    const newIds = reordered.map((t) => t.id)
+    const prevOrder = localOrder
+
+    setLocalOrder(newIds)
+    reorderTags(newIds)
+      .then(() => {
+        setLocalOrder(null) // let server order take over after sync
+        queryClient.invalidateQueries({ queryKey: ["tags"] })
+      })
+      .catch(() => {
+        setLocalOrder(prevOrder) // roll back optimistic update on failure
+      })
+  }
+
+  function cycleSortOrder() {
+    const next: TagSortOrder =
+      sortOrder === "custom" ? "usage" : sortOrder === "usage" ? "alpha" : "custom"
     setSortOrder(next)
     storeSort(next)
+    // clear local order when leaving custom mode
+    if (next !== "custom") setLocalOrder(null)
   }
 
   if (error) {
@@ -105,56 +179,96 @@ export function TagBar({ activeTag, horizontal = false }: TagBarProps) {
 
   if (horizontal) {
     return (
-      <HorizontalTagBar
-        sortedTags={sortedTags}
-        activeTag={activeTag}
-      />
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <HorizontalTagBar
+          sortedTags={sortedTags}
+          activeTag={activeTag}
+          canDrag={canDrag}
+        />
+      </DndContext>
     )
   }
 
   return (
-    <VerticalTagList
-      sortedTags={sortedTags}
-      maxCount={maxCount}
-      activeTag={activeTag}
-      sortOrder={sortOrder}
-      onToggleSort={toggleSort}
-    />
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragEnd={handleDragEnd}
+    >
+      <VerticalTagList
+        sortedTags={sortedTags}
+        maxCount={maxCount}
+        activeTag={activeTag}
+        sortOrder={sortOrder}
+        onCycleSort={cycleSortOrder}
+        canDrag={canDrag}
+      />
+    </DndContext>
   )
 }
 
 function TagPill({
   tag,
   isActive,
+  canDrag,
 }: {
   tag: TagWithCount
   isActive: boolean
+  canDrag: boolean
 }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: tag.id, disabled: !canDrag })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : undefined,
+  }
+
   return (
-    <Link
-      to="/"
-      search={(prev: StreamSearch) => ({ q: prev.q, tag: tag.name })}
-      aria-label={`${tag.name}, ${tag.theme_count} ${tag.theme_count === 1 ? "theme" : "themes"}`}
-      aria-current={isActive ? "page" : undefined}
-      className={cn(
-        "shrink-0 rounded-full px-3 py-1.5 no-underline transition-colors whitespace-nowrap",
-        isActive
-          ? "bg-foreground text-background font-medium"
-          : "bg-secondary text-muted-foreground hover:text-foreground",
+    <div ref={setNodeRef} style={style} className="shrink-0 flex items-center">
+      {canDrag && (
+        <button
+          {...attributes}
+          {...listeners}
+          type="button"
+          className="cursor-grab active:cursor-grabbing p-0.5 text-muted-foreground/40 hover:text-muted-foreground"
+          aria-label={`Drag to reorder ${tag.name}`}
+        >
+          <GripVertical className="h-3 w-3" />
+        </button>
       )}
-    >
-      {tag.name}
-      <span className="text-[10px] opacity-50 ml-1">{tag.theme_count}</span>
-    </Link>
+      <Link
+        to="/"
+        search={(prev: StreamSearch) => ({ q: prev.q, tag: tag.name })}
+        aria-label={`${tag.name}, ${tag.theme_count} ${tag.theme_count === 1 ? "theme" : "themes"}`}
+        aria-current={isActive ? "page" : undefined}
+        className={cn(
+          "shrink-0 rounded-full px-3 py-1.5 no-underline transition-colors whitespace-nowrap",
+          isActive
+            ? "bg-foreground text-background font-medium"
+            : "bg-secondary text-muted-foreground hover:text-foreground",
+        )}
+      >
+        {tag.name}
+        <span className="text-[10px] opacity-50 ml-1">{tag.theme_count}</span>
+      </Link>
+    </div>
   )
 }
 
 function HorizontalTagBar({
   sortedTags,
   activeTag,
+  canDrag,
 }: {
   sortedTags: TagWithCount[]
   activeTag?: string
+  canDrag: boolean
 }) {
   const [sheetOpen, setSheetOpen] = useState(false)
 
@@ -178,33 +292,43 @@ function HorizontalTagBar({
 
   return (
     <>
-      <nav className="flex gap-2 overflow-x-auto pb-2 scrollbar-none text-sm">
-        <Link
-          to="/"
-          search={(prev: StreamSearch) => ({ q: prev.q })}
-          aria-current={!activeTag ? "page" : undefined}
-          className={cn(
-            "shrink-0 rounded-full px-3 py-1.5 no-underline transition-colors whitespace-nowrap",
-            !activeTag
-              ? "bg-foreground text-background font-medium"
-              : "bg-secondary text-muted-foreground hover:text-foreground",
-          )}
-        >
-          All
-        </Link>
-        {mobileTags.map((tag) => (
-          <TagPill key={tag.id} tag={tag} isActive={activeTag === tag.name} />
-        ))}
-        {hiddenCount > 0 && (
-          <button
-            type="button"
-            onClick={() => setSheetOpen(true)}
-            className="shrink-0 rounded-full px-3 py-1.5 text-sm whitespace-nowrap bg-secondary text-muted-foreground hover:text-foreground transition-colors border border-dashed border-border cursor-pointer"
+      <SortableContext
+        items={mobileTags.map((t) => t.id)}
+        strategy={horizontalListSortingStrategy}
+      >
+        <nav className="flex gap-2 overflow-x-auto pb-2 scrollbar-none text-sm">
+          <Link
+            to="/"
+            search={(prev: StreamSearch) => ({ q: prev.q })}
+            aria-current={!activeTag ? "page" : undefined}
+            className={cn(
+              "shrink-0 rounded-full px-3 py-1.5 no-underline transition-colors whitespace-nowrap",
+              !activeTag
+                ? "bg-foreground text-background font-medium"
+                : "bg-secondary text-muted-foreground hover:text-foreground",
+            )}
           >
-            +{hiddenCount} more
-          </button>
-        )}
-      </nav>
+            All
+          </Link>
+          {mobileTags.map((tag) => (
+            <TagPill
+              key={tag.id}
+              tag={tag}
+              isActive={activeTag === tag.name}
+              canDrag={canDrag}
+            />
+          ))}
+          {hiddenCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setSheetOpen(true)}
+              className="shrink-0 rounded-full px-3 py-1.5 text-sm whitespace-nowrap bg-secondary text-muted-foreground hover:text-foreground transition-colors border border-dashed border-border cursor-pointer"
+            >
+              +{hiddenCount} more
+            </button>
+          )}
+        </nav>
+      </SortableContext>
       {needsTruncation && (
         <TagSheet
           open={sheetOpen}
@@ -217,31 +341,59 @@ function HorizontalTagBar({
   )
 }
 
-function TagLink({
+function SortableTagLink({
   tag,
   isActive,
   tier,
+  canDrag,
 }: {
   tag: TagWithCount
   isActive: boolean
   tier: number
+  canDrag: boolean
 }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: tag.id, disabled: !canDrag })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : undefined,
+  }
+
   return (
-    <Link
-      to="/"
-      search={(prev: StreamSearch) => ({ q: prev.q, tag: tag.name })}
-      aria-label={`${tag.name}, ${tag.theme_count} ${tag.theme_count === 1 ? "theme" : "themes"}`}
-      aria-current={isActive ? "page" : undefined}
-      className={cn(
-        "flex items-center justify-between py-0.5 no-underline hover:text-foreground transition-colors",
-        isActive ? "text-foreground font-medium" : USAGE_TIER_CLASSES[tier],
-      )}
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center gap-1 group"
     >
-      <span className="truncate">{tag.name}</span>
-      <span className="text-xs text-muted-foreground/50 ml-2 shrink-0 tabular-nums">
-        {tag.theme_count}
-      </span>
-    </Link>
+      {canDrag && (
+        <button
+          {...attributes}
+          {...listeners}
+          type="button"
+          className="cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 text-muted-foreground/40 hover:text-muted-foreground transition-opacity shrink-0"
+          aria-label={`Drag to reorder ${tag.name}`}
+        >
+          <GripVertical className="h-3 w-3" />
+        </button>
+      )}
+      <Link
+        to="/"
+        search={(prev: StreamSearch) => ({ q: prev.q, tag: tag.name })}
+        aria-label={`${tag.name}, ${tag.theme_count} ${tag.theme_count === 1 ? "theme" : "themes"}`}
+        aria-current={isActive ? "page" : undefined}
+        className={cn(
+          "flex items-center justify-between py-0.5 no-underline hover:text-foreground transition-colors flex-1 min-w-0",
+          isActive ? "text-foreground font-medium" : USAGE_TIER_CLASSES[tier],
+        )}
+      >
+        <span className="truncate">{tag.name}</span>
+        <span className="text-xs text-muted-foreground/50 ml-2 shrink-0 tabular-nums">
+          {tag.theme_count}
+        </span>
+      </Link>
+    </div>
   )
 }
 
@@ -263,21 +415,33 @@ function ToggleButton({
   )
 }
 
+const NEXT_SORT_LABEL: Record<TagSortOrder, string> = {
+  custom: "# usage",  // custom → usage
+  usage: "A→Z",       // usage → alpha
+  alpha: "↕ custom",  // alpha → custom
+}
+
+const NEXT_SORT_TITLE: Record<TagSortOrder, string> = {
+  custom: "Switch to by usage",
+  usage: "Switch to alphabetical",
+  alpha: "Switch to custom order",
+}
+
 function SortToggle({
   sortOrder,
-  onToggle,
+  onCycle,
 }: {
   sortOrder: TagSortOrder
-  onToggle: () => void
+  onCycle: () => void
 }) {
   return (
     <button
       type="button"
-      onClick={onToggle}
+      onClick={onCycle}
       className="text-[11px] text-muted-foreground/50 hover:text-muted-foreground cursor-pointer transition-colors"
-      title={sortOrder === "usage" ? "Switch to alphabetical" : "Switch to by usage"}
+      title={NEXT_SORT_TITLE[sortOrder]}
     >
-      {sortOrder === "usage" ? "A→Z" : "# usage"}
+      {NEXT_SORT_LABEL[sortOrder]}
     </button>
   )
 }
@@ -287,13 +451,15 @@ function VerticalTagList({
   maxCount,
   activeTag,
   sortOrder,
-  onToggleSort,
+  onCycleSort,
+  canDrag,
 }: {
   sortedTags: TagWithCount[]
   maxCount: number
   activeTag?: string
   sortOrder: TagSortOrder
-  onToggleSort: () => void
+  onCycleSort: () => void
+  canDrag: boolean
 }) {
   const [expanded, setExpanded] = useState(false)
   const [filter, setFilter] = useState("")
@@ -305,7 +471,6 @@ function VerticalTagList({
     sortedTags.findIndex((t) => t.name === activeTag) >= VISIBLE_COUNT
   const showAll = expanded || activeInOverflow
 
-  // When filter is active, show all matching tags flat (no overflow split)
   const filteredTags = filter
     ? sortedTags.filter((t) => t.name.startsWith(filter.toLowerCase()))
     : null
@@ -354,41 +519,47 @@ function VerticalTagList({
         >
           All
         </Link>
-        <SortToggle sortOrder={sortOrder} onToggle={onToggleSort} />
+        <SortToggle sortOrder={sortOrder} onCycle={onCycleSort} />
       </div>
       {expanded && hasOverflow && !filteredTags && (
         <ToggleButton onClick={() => setExpanded(false)}>
           − fewer tags
         </ToggleButton>
       )}
-      <div className="space-y-1 border-t border-border pt-2">
-        {visibleTags.map((tag) => (
-          <TagLink
-            key={tag.id}
-            tag={tag}
-            isActive={activeTag === tag.name}
-            tier={getUsageTier(tag.theme_count, maxCount)}
-          />
-        ))}
+      <SortableContext
+        items={visibleTags.map((t) => t.id)}
+        strategy={verticalListSortingStrategy}
+      >
+        <div className="space-y-1 border-t border-border pt-2">
+          {visibleTags.map((tag) => (
+            <SortableTagLink
+              key={tag.id}
+              tag={tag}
+              isActive={activeTag === tag.name}
+              tier={getUsageTier(tag.theme_count, maxCount)}
+              canDrag={canDrag}
+            />
+          ))}
 
-        {hiddenCount > 0 && (
-          <ToggleButton onClick={() => setExpanded(true)}>
-            + {hiddenCount} more tags
-          </ToggleButton>
-        )}
+          {hiddenCount > 0 && (
+            <ToggleButton onClick={() => setExpanded(true)}>
+              + {hiddenCount} more tags
+            </ToggleButton>
+          )}
 
-        {expanded && hasOverflow && !filteredTags && (
-          <ToggleButton onClick={() => setExpanded(false)}>
-            − fewer tags
-          </ToggleButton>
-        )}
+          {expanded && hasOverflow && !filteredTags && (
+            <ToggleButton onClick={() => setExpanded(false)}>
+              − fewer tags
+            </ToggleButton>
+          )}
 
-        {filteredTags && filteredTags.length === 0 && (
-          <p className="text-xs text-muted-foreground italic py-1">
-            No matching tags.
-          </p>
-        )}
-      </div>
+          {filteredTags && filteredTags.length === 0 && (
+            <p className="text-xs text-muted-foreground italic py-1">
+              No matching tags.
+            </p>
+          )}
+        </div>
+      </SortableContext>
     </nav>
   )
 }

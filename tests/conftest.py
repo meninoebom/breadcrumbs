@@ -42,3 +42,16 @@ def client_fixture(session: Session):
     client = TestClient(app)
     yield client
     app.dependency_overrides.clear()
+
+
+@pytest.fixture(name="client_no_auth")
+def client_no_auth_fixture(session: Session):
+    """TestClient without auth override — tests real auth enforcement."""
+
+    def get_session_override():
+        return session
+
+    app.dependency_overrides[get_session] = get_session_override
+    client = TestClient(app, raise_server_exceptions=False)
+    yield client
+    app.dependency_overrides.clear()

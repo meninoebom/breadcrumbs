@@ -177,6 +177,7 @@ class Tag(TagBase, table=True):
     __tablename__ = "tag"
     __table_args__ = (Index("uq_tag_name_lower_idx", text("lower(name)"), unique=True),)
     id: Optional[int] = Field(default=None, primary_key=True)
+    position: Optional[int] = Field(default=None, nullable=True)
     themes: List["Theme"] = Relationship(  # type: ignore
         back_populates="tags",
         link_model=ThemeTag,

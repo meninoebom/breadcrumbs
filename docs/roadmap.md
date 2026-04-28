@@ -16,17 +16,9 @@
 - **Navigation & Permalinks** — Sidebar digest nav (monthly digest links with smooth-scroll), theme permalink pages (`/themes/$themeId`), hover-visible permalink icons on themes, DOM anchor IDs on all feed items
 - **Image Uploads** — Upload images/GIFs to Cloudflare R2 via writer dashboard, markdown image syntax inserted into breadcrumbs
 - **AI Tag Suggestions** — After theme creation, Claude Haiku suggests 3–5 reuse-aware tags; two-phase create dialog pre-fills the chip input with sparkle indicators; writer can edit before saving
+- **Tag Reordering** — Drag-to-reorder tags in sidebar (desktop) and mobile pill strip via dnd-kit; `position` column on Tag model; `PATCH /api/tags/reorder` (auth-required); order persists server-side across devices; sort cycles custom → usage → alpha
 
 ## Up Next
-
-### Phase 5: Tag Reordering
-
-Drag-to-reorder tags in both the sidebar and mobile pill strip. Order stored server-side so readers see the same ordering across all devices.
-
-- New `position` column on the Tag model with migration
-- `PATCH /api/tags/reorder` endpoint (auth required)
-- dnd-kit sortable containers in sidebar and tag bar
-- Feed and tag list respect server-side sort order
 
 ### Future
 
@@ -40,5 +32,3 @@ Drag-to-reorder tags in both the sidebar and mobile pill strip. Order stored ser
 #### Always-On Blog Authoring Agent
 A self-contained Telegram bot (not OpenClaw) with persistent memory via SQLite + vector embeddings. Responds 24/7 from a VPS or Mac Mini. Tools: create theme, add breadcrumb, list recent themes, semantic search over content. Hosting TBD.
 
-#### Tag Reordering
-Drag-to-reorder tags in the sidebar and mobile pill strip. The horizontal pill layout is already compatible with dnd-kit sortable containers.
