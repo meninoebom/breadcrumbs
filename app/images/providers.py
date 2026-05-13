@@ -39,7 +39,12 @@ Rules:
 - Describe what an observer would SEE. Start with a concrete noun phrase.
 - Translate abstract concepts into visual metaphors. "Autonomy" might become \
 "a single machine alone in a quiet glass room"; "attention" might become \
-"a figure leaning forward over a steaming cup."
+"a middle-aged Filipina nurse leaning forward over a steaming cup."
+- When the scene includes a person, name them with specific demographic detail — \
+ethnicity, age, gender, build, distinguishing features — chosen to fit the theme. \
+Don't default to one prototype (white, male, young, thin); across themes the \
+rendered range should feel like the world. Vary skin tones, ages, gender \
+presentations, and body types naturally, as the theme allows.
 - Do NOT repeat the theme's phrasing verbatim. Interpret, don't echo.
 - Do NOT use meta-language ("a painting showing X", "an image of Y"). Just the scene.
 - Do NOT include any style or medium notes — those are added downstream.
