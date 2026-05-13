@@ -13,7 +13,9 @@ STYLE_SUFFIX = (
     "Rendered as a flat oil painting in a limited three-color palette, "
     "figurative and confident, contemporary museum-quality painting, "
     "tone balanced between gravity and play. "
-    "If human figures are included, represent varied skin tones, ages, and body types."
+    "If human figures are included, represent varied skin tones, ages, and body types. "
+    "When hands are visible, they rest calmly at the sides, are folded, or hold "
+    "a single object — never reaching, gesturing, or pointing."
 )
 
 

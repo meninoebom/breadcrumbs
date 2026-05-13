@@ -9,6 +9,8 @@ vendor-specific exceptions.
 import logging
 import os
 import uuid
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeoutError
 from typing import Callable, List, Sequence
 from urllib.parse import urlparse
 
@@ -90,51 +92,98 @@ class ClaudeVisualizer:
 
 # ---------- Replicate image generator ----------
 
-DEFAULT_FLUX_MODEL = "black-forest-labs/flux-schnell"
+# The canonical "black-forest-labs/flux-schnell" model is routed through a shared
+# pool that has periods where predictions accept-but-never-start. The "-lora" sibling
+# runs the same Flux Schnell weights on a different pool; calling it without LoRA
+# inputs produces equivalent images. It does, however, OOM on num_outputs>1, so we
+# fan out one prediction per candidate.
+DEFAULT_FLUX_MODEL = "black-forest-labs/flux-schnell-lora"
+DEFAULT_PREDICTION_TIMEOUT_SECONDS = 60.0
 
 
 class ReplicateImageGenerator:
-    """Calls Flux Schnell on Replicate; returns temporary candidate URLs."""
+    """Generates candidates via parallel Flux Schnell predictions.
+
+    Each candidate is its own prediction with ``num_outputs=1``. This isolates failures
+    (a single CUDA OOM or stuck worker costs one candidate, not the whole batch) and
+    lets us put a wall-clock timeout around each call so the request can never hang.
+    """
 
     def __init__(
         self,
         model: str = DEFAULT_FLUX_MODEL,
         aspect_ratio: str = "1:1",
         num_outputs: int = 4,
+        timeout_seconds: float = DEFAULT_PREDICTION_TIMEOUT_SECONDS,
         runner: Callable[..., list] = replicate.run,
     ) -> None:
         self._model = model
         self._aspect_ratio = aspect_ratio
         self._num_outputs = num_outputs
+        self._timeout_seconds = timeout_seconds
         self._runner = runner
 
     def generate(self, prompt: str) -> List[str]:
         if not os.getenv("REPLICATE_API_TOKEN"):
             raise ImageGenerationError("REPLICATE_API_TOKEN is not set")
 
+        pool = ThreadPoolExecutor(max_workers=self._num_outputs)
+        try:
+            futures = [
+                pool.submit(self._generate_one, prompt)
+                for _ in range(self._num_outputs)
+            ]
+            urls: List[str] = []
+            errors: List[str] = []
+            for future in futures:
+                try:
+                    urls.append(future.result(timeout=self._timeout_seconds))
+                except FutureTimeoutError:
+                    errors.append(f"timed out after {self._timeout_seconds:.0f}s")
+                except ImageGenerationError as e:
+                    errors.append(str(e))
+        finally:
+            # Don't block returning to the user on slow stragglers; they'll finish
+            # in their own time and the threadpool is GC'd.
+            pool.shutdown(wait=False, cancel_futures=True)
+
+        if not urls:
+            logger.error(
+                "All %d Replicate candidates failed (prompt_len=%d): %s",
+                self._num_outputs, len(prompt), errors,
+            )
+            raise ImageGenerationError(
+                f"All {self._num_outputs} candidates failed: {'; '.join(errors)}"
+            )
+        if errors:
+            logger.warning(
+                "Partial Replicate failure: %d/%d candidates failed: %s",
+                len(errors), self._num_outputs, errors,
+            )
+        return urls
+
+    def _generate_one(self, prompt: str) -> str:
         try:
             output = self._runner(
                 self._model,
                 input={
                     "prompt": prompt,
-                    "num_outputs": self._num_outputs,
+                    "num_outputs": 1,
                     "aspect_ratio": self._aspect_ratio,
                     "output_format": "webp",
                     "output_quality": 90,
                 },
             )
         except replicate.exceptions.ReplicateError as e:
-            logger.error("Replicate API error: %s (prompt_len=%d)", e, len(prompt))
             raise ImageGenerationError(f"Replicate error: {e}") from e
         except httpx.HTTPError as e:
-            logger.error("Replicate network error: %s", e)
-            raise ImageGenerationError(f"Network error contacting Replicate: {e}") from e
+            raise ImageGenerationError(f"Network error: {e}") from e
 
-        urls = [str(item.url) if hasattr(item, "url") else str(item) for item in output]
-        if not urls:
-            logger.error("Replicate returned empty output (prompt_len=%d)", len(prompt))
-            raise ImageGenerationError("Replicate returned no candidates")
-        return urls
+        items = list(output)
+        if not items:
+            raise ImageGenerationError("Replicate returned empty output")
+        item = items[0]
+        return str(item.url) if hasattr(item, "url") else str(item)
 
 
 # ---------- R2 image store ----------
