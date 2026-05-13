@@ -245,18 +245,35 @@ def test_replicate_generator_missing_token(monkeypatch):
         generator.generate("prompt")
 
 
-def test_replicate_generator_returns_urls(monkeypatch):
+def test_replicate_generator_fans_out_one_call_per_candidate(monkeypatch):
+    """Each candidate is its own prediction with num_outputs=1 — avoids GPU OOM."""
     monkeypatch.setenv("REPLICATE_API_TOKEN", "fake")
-    fake_runner = MagicMock(return_value=["https://r/1.webp", "https://r/2.webp"])
-    generator = ReplicateImageGenerator(runner=fake_runner)
+    counter = {"n": 0}
 
+    def fake_runner(model, input):
+        counter["n"] += 1
+        return [f"https://r/{counter['n']}.webp"]
+
+    generator = ReplicateImageGenerator(runner=fake_runner, num_outputs=4)
     urls = generator.generate("a scene")
 
-    assert urls == ["https://r/1.webp", "https://r/2.webp"]
+    assert len(urls) == 4
+    assert counter["n"] == 4
+    assert set(urls) == {f"https://r/{i}.webp" for i in range(1, 5)}
+
+
+def test_replicate_generator_sends_correct_input_shape(monkeypatch):
+    monkeypatch.setenv("REPLICATE_API_TOKEN", "fake")
+    fake_runner = MagicMock(return_value=["https://r/1.webp"])
+    generator = ReplicateImageGenerator(runner=fake_runner, num_outputs=1)
+
+    generator.generate("a scene")
+
     call_input = fake_runner.call_args.kwargs["input"]
     assert call_input["prompt"] == "a scene"
-    assert call_input["num_outputs"] == 4
+    assert call_input["num_outputs"] == 1
     assert call_input["aspect_ratio"] == "1:1"
+    assert call_input["output_format"] == "webp"
 
 
 def test_replicate_generator_handles_fileoutput_objects(monkeypatch):
@@ -264,31 +281,57 @@ def test_replicate_generator_handles_fileoutput_objects(monkeypatch):
     item = MagicMock()
     item.url = "https://r/1.webp"
     fake_runner = MagicMock(return_value=[item])
-    generator = ReplicateImageGenerator(runner=fake_runner)
+    generator = ReplicateImageGenerator(runner=fake_runner, num_outputs=1)
 
     assert generator.generate("prompt") == ["https://r/1.webp"]
 
 
-def test_replicate_generator_rejects_empty_output(monkeypatch):
+def test_replicate_generator_returns_partial_results_when_some_calls_fail(monkeypatch):
+    """One bad candidate shouldn't fail the whole batch — degraded is better than dead."""
+    import replicate.exceptions
     monkeypatch.setenv("REPLICATE_API_TOKEN", "fake")
-    generator = ReplicateImageGenerator(runner=MagicMock(return_value=[]))
-    with pytest.raises(ImageGenerationError, match="no candidates"):
-        generator.generate("prompt")
+    counter = {"n": 0}
+
+    def flaky_runner(model, input):
+        counter["n"] += 1
+        if counter["n"] == 2:
+            raise replicate.exceptions.ReplicateError("CUDA OOM on this one")
+        return [f"https://r/{counter['n']}.webp"]
+
+    generator = ReplicateImageGenerator(runner=flaky_runner, num_outputs=4)
+    urls = generator.generate("prompt")
+    assert len(urls) == 3
 
 
-def test_replicate_generator_wraps_replicate_errors(monkeypatch):
+def test_replicate_generator_raises_when_all_calls_fail(monkeypatch):
     import replicate.exceptions
     monkeypatch.setenv("REPLICATE_API_TOKEN", "fake")
     broken = MagicMock(side_effect=replicate.exceptions.ReplicateError("upstream 502"))
-    generator = ReplicateImageGenerator(runner=broken)
-    with pytest.raises(ImageGenerationError, match="Replicate error"):
+    generator = ReplicateImageGenerator(runner=broken, num_outputs=4)
+    with pytest.raises(ImageGenerationError, match="All 4 candidates failed"):
+        generator.generate("prompt")
+
+
+def test_replicate_generator_times_out_stuck_predictions(monkeypatch):
+    """A wedged Replicate prediction must not hang the request forever."""
+    import time
+    monkeypatch.setenv("REPLICATE_API_TOKEN", "fake")
+
+    def slow_runner(model, input):
+        time.sleep(5)  # would hang forever in the real failure mode
+        return ["never seen"]
+
+    generator = ReplicateImageGenerator(
+        runner=slow_runner, num_outputs=2, timeout_seconds=0.1
+    )
+    with pytest.raises(ImageGenerationError, match="timed out"):
         generator.generate("prompt")
 
 
 def test_replicate_generator_wraps_http_errors(monkeypatch):
     monkeypatch.setenv("REPLICATE_API_TOKEN", "fake")
     broken = MagicMock(side_effect=httpx.ConnectError("timeout"))
-    generator = ReplicateImageGenerator(runner=broken)
+    generator = ReplicateImageGenerator(runner=broken, num_outputs=1)
     with pytest.raises(ImageGenerationError, match="Network error"):
         generator.generate("prompt")
 
