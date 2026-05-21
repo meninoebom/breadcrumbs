@@ -312,6 +312,44 @@ def test_replicate_generator_raises_when_all_calls_fail(monkeypatch):
         generator.generate("prompt")
 
 
+def _make_model_error(msg: str):
+    """ModelError takes a Prediction-like object whose .error it reports."""
+    import replicate.exceptions
+    stub = type("PredictionStub", (), {"error": msg})()
+    return replicate.exceptions.ModelError(stub)
+
+
+def test_replicate_generator_retries_once_on_model_error(monkeypatch):
+    """CUDA OOM lands on a random worker — one retry usually picks a healthy one."""
+    import replicate.exceptions
+    monkeypatch.setenv("REPLICATE_API_TOKEN", "fake")
+    calls = {"n": 0}
+
+    def oom_then_ok(model, input):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise _make_model_error("CUDA out of memory")
+        return ["https://r/ok.webp"]
+
+    generator = ReplicateImageGenerator(runner=oom_then_ok, num_outputs=1)
+    urls = generator.generate("prompt")
+    assert urls == ["https://r/ok.webp"]
+    assert calls["n"] == 2  # one failure, one retry
+
+
+def test_replicate_generator_gives_up_after_repeated_model_errors(monkeypatch):
+    """If the retry also OOMs, the candidate is a clean failure (not a 500)."""
+    import replicate.exceptions
+    monkeypatch.setenv("REPLICATE_API_TOKEN", "fake")
+    persistent_oom = MagicMock(
+        side_effect=_make_model_error("CUDA out of memory")
+    )
+    generator = ReplicateImageGenerator(runner=persistent_oom, num_outputs=1)
+    with pytest.raises(ImageGenerationError, match="model error after retry"):
+        generator.generate("prompt")
+    assert persistent_oom.call_count == 2  # initial + one retry
+
+
 def test_replicate_generator_times_out_stuck_predictions(monkeypatch):
     """A wedged Replicate prediction must not hang the request forever."""
     import time
