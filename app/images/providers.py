@@ -168,27 +168,39 @@ class ReplicateImageGenerator:
         return urls
 
     def _generate_one(self, prompt: str) -> str:
-        try:
-            output = self._runner(
-                self._model,
-                input={
-                    "prompt": prompt,
-                    "num_outputs": 1,
-                    "aspect_ratio": self._aspect_ratio,
-                    "output_format": "webp",
-                    "output_quality": 90,
-                },
-            )
-        except replicate.exceptions.ReplicateError as e:
-            raise ImageGenerationError(f"Replicate error: {e}") from e
-        except httpx.HTTPError as e:
-            raise ImageGenerationError(f"Network error: {e}") from e
+        # ModelError (CUDA OOM, transient prediction failures) is a sibling of
+        # ReplicateError under ReplicateException — catch the base so we don't 500
+        # on shared-GPU saturation. Retry once on ModelError: the next attempt
+        # routes to a different worker and almost always succeeds.
+        last_error: Exception | None = None
+        for attempt in range(2):
+            try:
+                output = self._runner(
+                    self._model,
+                    input={
+                        "prompt": prompt,
+                        "num_outputs": 1,
+                        "aspect_ratio": self._aspect_ratio,
+                        "output_format": "webp",
+                        "output_quality": 90,
+                    },
+                )
+            except replicate.exceptions.ModelError as e:
+                last_error = e
+                logger.warning("Replicate ModelError on attempt %d: %s", attempt + 1, e)
+                continue
+            except replicate.exceptions.ReplicateException as e:
+                raise ImageGenerationError(f"Replicate error: {e}") from e
+            except httpx.HTTPError as e:
+                raise ImageGenerationError(f"Network error: {e}") from e
 
-        items = list(output)
-        if not items:
-            raise ImageGenerationError("Replicate returned empty output")
-        item = items[0]
-        return str(item.url) if hasattr(item, "url") else str(item)
+            items = list(output)
+            if not items:
+                raise ImageGenerationError("Replicate returned empty output")
+            item = items[0]
+            return str(item.url) if hasattr(item, "url") else str(item)
+
+        raise ImageGenerationError(f"Replicate model error after retry: {last_error}") from last_error
 
 
 # ---------- R2 image store ----------
