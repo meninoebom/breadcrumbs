@@ -1,10 +1,17 @@
 name: CI
 
+# PR-only. Re-running the full backend+frontend matrix on the squash-merge push
+# was pure duplication. Railway auto-deploys from git push independently of
+# Actions, so deploys are unaffected. See
+# ~/.claude/knowledge-base/github-actions-cost-control.md
 on:
   pull_request:
     branches: [main]
-  push:
-    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   backend:
