@@ -1,0 +1,69 @@
+# mise — polyglot orchestrator for breadcrumbs.
+# Two halves in one repo:
+#   - Backend:  FastAPI at the repo root (app/), Python + uv + Alembic + Postgres.
+#   - Frontend: Vite + React 19 + Tailwind v4 in frontend/, on pnpm.
+# mise pins both toolchains and runs cross-language tasks. See
+# ~/projects/knowledge-base/mise.md for the rationale.
+
+[tools]
+node = "22"        # Vite 7 needs >= 20.19 / 22.12; 22 LTS
+pnpm = "10.33.0"   # frontend package manager (matches its packageManager field)
+python = "3.13"    # matches .python-version and requires-python
+uv = "latest"      # backend uses uv (uv.lock present)
+
+[env]
+# No committed .env: the backend loads the root .env itself (app/db.py -> load_dotenv),
+# and Vite reads frontend/.env. Each task sets `dir`, so the right env loads naturally.
+
+[tasks.dev]
+description = "Run frontend (Vite) + backend (FastAPI) together"
+depends = ["dev:web", "dev:api"]
+
+[tasks."dev:web"]
+description = "Vite dev server (frontend)"
+dir = "frontend"
+run = "pnpm dev"
+
+[tasks."dev:api"]
+description = "FastAPI dev server with reload (backend, port 8100)"
+run = "uv run uvicorn app.api:app --reload --port 8100"
+
+[tasks.check]
+description = "Lint + typecheck (web) and tests (api) — the canonical gate"
+depends = ["check:web", "check:api"]
+
+[tasks."check:web"]
+description = "ESLint + TypeScript typecheck (frontend)"
+dir = "frontend"
+run = [
+  "pnpm lint",
+  "pnpm exec tsc -b",
+]
+
+[tasks."check:api"]
+description = "Backend pytest (no ruff wired in this repo yet)"
+run = "uv run pytest"
+
+[tasks.test]
+description = "Backend test suite"
+run = "uv run pytest"
+
+[tasks.build]
+description = "Production build of the Vite frontend"
+dir = "frontend"
+run = "pnpm build"
+
+[tasks.migrate]
+description = "Run Alembic migrations against the configured database"
+run = "uv run alembic upgrade head"
+
+[tasks.install]
+description = "Install deps for both halves"
+depends = ["install:web", "install:api"]
+
+[tasks."install:web"]
+dir = "frontend"
+run = "pnpm install"
+
+[tasks."install:api"]
+run = "uv sync"

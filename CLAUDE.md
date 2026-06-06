@@ -9,6 +9,30 @@
 - **Backend:** Python, FastAPI, PostgreSQL, SQLModel
 - **Frontend:** TanStack Router, TanStack Query, Tailwind CSS, Shadcn UI
 
+## Local Dev via mise
+
+breadcrumbs is polyglot (FastAPI backend at root + Vite/React frontend in `frontend/`), so
+`mise.toml` pins both toolchains and orchestrates tasks across them. See
+`~/projects/knowledge-base/mise.md` for the rationale.
+
+```bash
+mise install        # provision node 22, pnpm 10.33, python 3.13, uv
+mise run dev        # Vite frontend + FastAPI backend together
+mise run check      # eslint + tsc (web) and pytest (api) — the gate
+mise run test       # backend pytest only
+mise run migrate    # alembic upgrade head
+mise run build      # production Vite build
+mise tasks ls       # all tasks
+```
+
+Notes:
+- **Frontend is on pnpm** (version pinned via `packageManager` and `mise.toml [tools]`); backend
+  is on uv. The Railway buildCommand uses `corepack enable && pnpm install --frozen-lockfile`.
+- **uv owns the Python venv, not mise** — mise's `python = "3.13"` pin matches `.python-version`,
+  but `uv run` reuses an existing `.venv` regardless. `rm -rf .venv && uv sync` rebuilds on 3.13.
+- **No ruff wired here yet**, so `check:api` is pytest-only.
+- **CI gotcha:** never pipe `mise run check` through `tail` — it masks mise's exit code.
+
 ## Development Workflow
 
 **Tracking what's next:**
@@ -148,7 +172,7 @@ See `docs/log/README.md` for format and dimensions.
 **TanStack Router route tree must be committed:**
 - `frontend/src/routeTree.gen.ts` is auto-generated during `vite dev` when route files change
 - Docker builds run `tsc` before `vite build`, so the route tree must be pre-committed
-- If you add a new route file, run `npm run build` locally and commit the updated `routeTree.gen.ts`
+- If you add a new route file, run `pnpm build` (or `mise run build`) locally and commit the updated `routeTree.gen.ts`
 
 ## Deep-Dive References
 - **Data model:** `docs/data-model.md`
