@@ -1,6 +1,6 @@
 [build]
 builder = "nixpacks"
-buildCommand = "cd frontend && npm ci && npm run build && cd .. && uv sync"
+buildCommand = "cd frontend && corepack enable && pnpm install --frozen-lockfile && pnpm run build && cd .. && uv sync"
 
 [deploy]
 startCommand = "uv run alembic upgrade head && uv run python main.py"
