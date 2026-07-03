@@ -1,6 +1,7 @@
 import { useMemo } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"
+import { Link2 } from "lucide-react"
 import Markdown from "react-markdown"
 import { fetchBreadcrumbs } from "@/lib/api"
 import { useScrollReveal } from "@/hooks/use-scroll-reveal"
@@ -32,8 +33,18 @@ export function ThemeSection({ theme, variant = "feed", animate = true }: ThemeS
   const isFeed = variant === "feed"
 
   return (
-    <article id={`theme-${theme.id}`} className="space-y-3">
+    <article id={`theme-${theme.id}`} className="group space-y-3">
       <div className="relative">
+        {isFeed && (
+          <Link
+            to="/themes/$themeId"
+            params={{ themeId: String(theme.id) }}
+            aria-label="Theme permalink"
+            className="absolute top-0 right-0 z-10 p-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+          >
+            <Link2 className="size-3.5 text-muted-foreground/50 hover:text-foreground" />
+          </Link>
+        )}
         {theme.image_url && (
           <img
             src={theme.image_url}
@@ -48,19 +59,10 @@ export function ThemeSection({ theme, variant = "feed", animate = true }: ThemeS
           className={cn(
             "prose prose-sm max-w-none",
             theme.image_url && "mt-3",
-            isFeed && "[&_a]:relative [&_a]:z-10",
           )}
         >
           <Markdown>{theme.body_md}</Markdown>
         </div>
-        {isFeed && (
-          <Link
-            to="/themes/$themeId"
-            params={{ themeId: String(theme.id) }}
-            className="absolute inset-0 z-0 rounded-lg"
-            aria-label="View theme permalink"
-          />
-        )}
       </div>
 
       {isLoading && <BreadcrumbSkeleton />}
