@@ -1,5 +1,6 @@
 import type { DigestPublic } from "@/lib/types"
 import { Sparkles } from "lucide-react"
+import Markdown from "react-markdown"
 
 function formatWeekRange(start: string, end: string): string {
   const s = new Date(start + "T00:00:00")
@@ -28,9 +29,9 @@ export function WeeklySummary({ digest }: { digest: DigestPublic }) {
         {formatDigestHeading(digest)}
       </h2>
       <div className="relative rounded-lg border border-dashed border-border/60 bg-muted/20 px-5 py-4">
-        <p className="text-sm leading-relaxed text-muted-foreground">
-          {digest.summary_md}
-        </p>
+        <div className="prose prose-sm max-w-none text-sm leading-relaxed text-muted-foreground">
+          <Markdown>{digest.summary_md}</Markdown>
+        </div>
         <span title="AI-generated summary">
           <Sparkles className="absolute bottom-2 right-3 h-3 w-3 text-muted-foreground/25" />
         </span>
