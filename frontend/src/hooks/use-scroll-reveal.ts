@@ -6,9 +6,14 @@ import { useEffect, useRef, useState } from "react"
  */
 export function useScrollReveal<T extends HTMLElement = HTMLDivElement>() {
   const ref = useRef<T>(null)
-  const [revealed, setRevealed] = useState(false)
+  const prefersReducedMotion =
+    typeof window !== "undefined" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  const [revealed, setRevealed] = useState(prefersReducedMotion)
 
   useEffect(() => {
+    if (prefersReducedMotion) return
+
     const el = ref.current
     if (!el) return
 
@@ -24,7 +29,7 @@ export function useScrollReveal<T extends HTMLElement = HTMLDivElement>() {
 
     observer.observe(el)
     return () => observer.disconnect()
-  }, [])
+  }, [prefersReducedMotion])
 
   return { ref, revealed }
 }

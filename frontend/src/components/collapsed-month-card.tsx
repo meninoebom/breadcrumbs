@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 import { ChevronDown, Sparkles } from "lucide-react"
+import Markdown from "react-markdown"
 import { ThemeSection } from "@/components/theme-section"
 import { WeeklySummary } from "@/components/weekly-summary"
 import { fetchThemes } from "@/lib/api"
@@ -66,9 +67,11 @@ export function CollapsedMonthCard({ month, digests, isOpen, onToggle }: Props) 
             </span>
           </div>
           {!isOpen && month.monthly_digest && (
-            <p className="mt-2 text-sm leading-relaxed text-muted-foreground line-clamp-3">
-              {month.monthly_digest.summary_md}
-            </p>
+            <div className="mt-2 line-clamp-3">
+              <div className="prose prose-sm max-w-none text-sm leading-relaxed text-muted-foreground">
+                <Markdown>{month.monthly_digest.summary_md}</Markdown>
+              </div>
+            </div>
           )}
         </div>
       </button>
@@ -77,9 +80,9 @@ export function CollapsedMonthCard({ month, digests, isOpen, onToggle }: Props) 
         <div className="mt-4 space-y-8">
           {month.monthly_digest && (
             <div className="relative rounded-md border border-dashed border-border/60 bg-muted/20 px-4 py-3">
-              <p className="text-sm leading-relaxed text-muted-foreground">
-                {month.monthly_digest.summary_md}
-              </p>
+              <div className="prose prose-sm max-w-none text-sm leading-relaxed text-muted-foreground">
+                <Markdown>{month.monthly_digest.summary_md}</Markdown>
+              </div>
               <span title="AI-generated summary">
                 <Sparkles className="absolute bottom-2 right-3 h-3 w-3 text-muted-foreground/25" />
               </span>
@@ -98,7 +101,7 @@ export function CollapsedMonthCard({ month, digests, isOpen, onToggle }: Props) 
                 </h3>
                 <div className="space-y-8 pl-4 border-l-2 border-border">
                   {item.themes.map((theme) => (
-                    <ThemeSection key={theme.id} theme={theme} />
+                    <ThemeSection key={theme.id} theme={theme} animate={false} />
                   ))}
                 </div>
               </section>

@@ -1,6 +1,7 @@
 import { useMemo } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"
+import { Link2 } from "lucide-react"
 import Markdown from "react-markdown"
 import { fetchBreadcrumbs } from "@/lib/api"
 import { useScrollReveal } from "@/hooks/use-scroll-reveal"
@@ -11,9 +12,10 @@ import { cn } from "@/lib/utils"
 interface ThemeSectionProps {
   theme: ThemePublic
   variant?: "feed" | "permalink"
+  animate?: boolean
 }
 
-export function ThemeSection({ theme, variant = "feed" }: ThemeSectionProps) {
+export function ThemeSection({ theme, variant = "feed", animate = true }: ThemeSectionProps) {
   const {
     data: breadcrumbs,
     isLoading,
@@ -31,8 +33,18 @@ export function ThemeSection({ theme, variant = "feed" }: ThemeSectionProps) {
   const isFeed = variant === "feed"
 
   return (
-    <article id={`theme-${theme.id}`} className="space-y-3">
+    <article id={`theme-${theme.id}`} className="group space-y-3">
       <div className="relative">
+        {isFeed && (
+          <Link
+            to="/themes/$themeId"
+            params={{ themeId: String(theme.id) }}
+            aria-label="Theme permalink"
+            className="absolute top-0 right-0 z-10 p-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+          >
+            <Link2 className="size-3.5 text-muted-foreground/50 hover:text-foreground" />
+          </Link>
+        )}
         {theme.image_url && (
           <img
             src={theme.image_url}
@@ -47,19 +59,10 @@ export function ThemeSection({ theme, variant = "feed" }: ThemeSectionProps) {
           className={cn(
             "prose prose-sm max-w-none",
             theme.image_url && "mt-3",
-            isFeed && "[&_a]:relative [&_a]:z-10",
           )}
         >
           <Markdown>{theme.body_md}</Markdown>
         </div>
-        {isFeed && (
-          <Link
-            to="/themes/$themeId"
-            params={{ themeId: String(theme.id) }}
-            className="absolute inset-0 z-0 rounded-lg"
-            aria-label="View theme permalink"
-          />
-        )}
       </div>
 
       {isLoading && <BreadcrumbSkeleton />}
@@ -73,7 +76,7 @@ export function ThemeSection({ theme, variant = "feed" }: ThemeSectionProps) {
       {tree.length > 0 && (
         <div className="pl-4">
           {tree.map((node, i) => (
-            <BreadcrumbTree key={node.id} node={node} depth={0} index={i} />
+            <BreadcrumbTree key={node.id} node={node} depth={0} index={i} animate={animate} />
           ))}
         </div>
       )}
@@ -102,31 +105,34 @@ function BreadcrumbTree({
   node,
   depth,
   index,
+  animate,
 }: {
   node: BreadcrumbNode
   depth: number
   index: number
+  animate: boolean
 }) {
   const { ref, revealed } = useScrollReveal<HTMLDivElement>()
   const indent = INDENT_PX[Math.min(depth, 3)]
+  const isRevealed = !animate || revealed
 
   return (
-    <div ref={ref} style={indent > 0 ? { marginLeft: indent } : undefined}>
+    <div ref={animate ? ref : undefined} style={indent > 0 ? { marginLeft: indent } : undefined}>
       {depth === 0 && index > 0 && (
         <div className="flex justify-center py-0.5">
           <span className="text-muted-foreground/30 text-xs">·</span>
         </div>
       )}
       <div
-        className={cn("opacity-0", revealed && "animate-fade-up")}
-        style={revealed ? { animationDelay: `${index * 50}ms` } : undefined}
+        className={cn(!isRevealed && "opacity-0", animate && revealed && "animate-fade-up")}
+        style={animate && revealed ? { animationDelay: `${index * 50}ms` } : undefined}
       >
         <div className="prose prose-sm max-w-none">
           <Markdown>{node.body_md}</Markdown>
         </div>
       </div>
       {node.children.map((child, i) => (
-        <BreadcrumbTree key={child.id} node={child} depth={depth + 1} index={i} />
+        <BreadcrumbTree key={child.id} node={child} depth={depth + 1} index={i} animate={animate} />
       ))}
     </div>
   )
