@@ -101,7 +101,7 @@ export function CollapsedMonthCard({ month, digests, isOpen, onToggle }: Props) 
                 </h3>
                 <div className="space-y-8 pl-4 border-l-2 border-border">
                   {item.themes.map((theme) => (
-                    <ThemeSection key={theme.id} theme={theme} />
+                    <ThemeSection key={theme.id} theme={theme} animate={false} />
                   ))}
                 </div>
               </section>
