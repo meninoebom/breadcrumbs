@@ -59,17 +59,22 @@ export function CreateThemeDialog({ open, onOpenChange }: CreateThemeDialogProps
   const saveMutation = useMutation({
     mutationFn: ({ themeId, tags }: { themeId: number; tags: string[] }) =>
       updateTheme(themeId, { tags: tags.map((name) => ({ name })) }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["themes"] })
-      queryClient.invalidateQueries({ queryKey: ["tags"] })
-      onOpenChange(false)
-      resetForm()
-      navigate({
-        to: "/writer/themes/$themeId",
-        params: { themeId: String(createdThemeId) },
-      })
-    },
+    onSuccess: (_data, variables) => goToTheme(variables.themeId),
   })
+
+  // Close the dialog and land in the new theme's editor. Every review-tags exit
+  // routes through here — saving tags, skipping them, or dismissing the dialog —
+  // so a created-but-untagged theme is never silently stranded.
+  function goToTheme(themeId: number) {
+    queryClient.invalidateQueries({ queryKey: ["themes"] })
+    queryClient.invalidateQueries({ queryKey: ["tags"] })
+    onOpenChange(false)
+    resetForm()
+    navigate({
+      to: "/writer/themes/$themeId",
+      params: { themeId: String(themeId) },
+    })
+  }
 
   function resetForm() {
     // Body is left to the draft hook: cancelling during compose keeps the
@@ -92,8 +97,18 @@ export function CreateThemeDialog({ open, onOpenChange }: CreateThemeDialogProps
   }
 
   function handleOpenChange(open: boolean) {
-    if (!open) resetForm()
-    onOpenChange(open)
+    if (open) {
+      onOpenChange(true)
+      return
+    }
+    // Dismissing (escape / overlay / Cancel) after the theme exists must
+    // acknowledge it — navigate to its editor instead of silently closing.
+    if (phase === "review-tags" && createdThemeId !== null) {
+      goToTheme(createdThemeId)
+      return
+    }
+    resetForm()
+    onOpenChange(false)
   }
 
   const isLoading = createMutation.isPending || isSuggesting || saveMutation.isPending
@@ -161,7 +176,7 @@ export function CreateThemeDialog({ open, onOpenChange }: CreateThemeDialogProps
               variant="outline"
               onClick={() => handleOpenChange(false)}
             >
-              Cancel
+              {phase === "compose" ? "Cancel" : "Skip tags"}
             </Button>
             <Button
               type="submit"
