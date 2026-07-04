@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react"
+import { useRef, useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { Check, ImagePlus, Plus, X } from "lucide-react"
+import { ImagePlus, Plus, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { createBreadcrumb, uploadImage } from "@/lib/api"
+import { useHighlight } from "./highlight-context"
 
 interface AddBreadcrumbFormProps {
   themeId: number
@@ -13,31 +14,23 @@ interface AddBreadcrumbFormProps {
 
 export function AddBreadcrumbForm({ themeId, parentId, onCancel }: AddBreadcrumbFormProps) {
   const queryClient = useQueryClient()
+  const { highlight } = useHighlight()
   const [bodyMd, setBodyMd] = useState("")
-  const [showSaved, setShowSaved] = useState(false)
   const [uploading, setUploading] = useState(false)
-  const savedTimer = useRef<ReturnType<typeof setTimeout>>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-
-  // Clean up timer on unmount
-  useEffect(() => {
-    return () => {
-      if (savedTimer.current) clearTimeout(savedTimer.current)
-    }
-  }, [])
 
   const mutation = useMutation({
     mutationFn: (data: { body_md: string; parent_id?: number }) =>
       createBreadcrumb(themeId, data),
-    onSuccess: () => {
+    onSuccess: (created) => {
       queryClient.invalidateQueries({
         queryKey: ["themes", themeId, "breadcrumbs"],
       })
+      // The freshly added card highlights itself in the list — that entry
+      // animation is the primary "saved" signal (see #80).
+      highlight(created.id)
       setBodyMd("")
-      setShowSaved(true)
-      if (savedTimer.current) clearTimeout(savedTimer.current)
-      savedTimer.current = setTimeout(() => setShowSaved(false), 2000)
       if (parentId) {
         onCancel?.()
       } else {
@@ -134,12 +127,6 @@ export function AddBreadcrumbForm({ themeId, parentId, onCancel }: AddBreadcrumb
             <X className="size-4" />
             Cancel
           </Button>
-        )}
-        {showSaved && (
-          <span className="text-sm text-muted-foreground flex items-center gap-1 animate-in fade-in">
-            <Check className="size-3.5" />
-            Saved
-          </span>
         )}
       </div>
       {!parentId && (
