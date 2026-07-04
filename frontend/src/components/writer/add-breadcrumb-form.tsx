@@ -79,7 +79,8 @@ export function AddBreadcrumbForm({ themeId, parentId, onCancel }: AddBreadcrumb
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === "Enter" && !e.shiftKey) {
+    // Cmd+Enter (macOS) / Ctrl+Enter saves; plain Enter inserts a newline.
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault()
       submit()
     }
@@ -143,7 +144,7 @@ export function AddBreadcrumbForm({ themeId, parentId, onCancel }: AddBreadcrumb
       </div>
       {!parentId && (
         <p className="text-xs text-muted-foreground">
-          Enter to save &middot; Shift+Enter for new line
+          {navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl"}+Enter to save
         </p>
       )}
     </form>
