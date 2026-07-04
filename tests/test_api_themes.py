@@ -297,7 +297,8 @@ class _FakeService:
         self._generate_error = generate_error
         self._commit_error = commit_error
 
-    def generate_candidates(self, theme_body, tag_names):
+    def generate_candidates(self, theme_body, tag_names, breadcrumb_bodies=()):
+        self.last_breadcrumb_bodies = list(breadcrumb_bodies)
         if self._generate_error:
             raise self._generate_error
         return GenerationResult(prompt=self._prompt, candidates=list(self._candidates))
@@ -368,6 +369,17 @@ def test_generate_theme_image_happy_path(client, fake_image_service):
     body = response.json()
     assert body["prompt"] == "a fake prompt"
     assert len(body["candidates"]) == 4
+
+
+def test_generate_theme_image_passes_breadcrumbs_to_service(client, fake_image_service):
+    r = client.post("/api/themes", json={"body_md": "On slowness"})
+    theme_id = r.json()["id"]
+    client.post(f"/api/themes/{theme_id}/breadcrumbs", json={"body_md": "first crumb"})
+    client.post(f"/api/themes/{theme_id}/breadcrumbs", json={"body_md": "second crumb"})
+
+    response = client.post(f"/api/themes/{theme_id}/generate-image")
+    assert response.status_code == 200
+    assert fake_image_service.last_breadcrumb_bodies == ["first crumb", "second crumb"]
 
 
 def test_generate_theme_image_maps_generation_errors_to_503(client):

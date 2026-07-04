@@ -67,13 +67,24 @@ class ClaudeVisualizer:
         self._model = model
         self._max_tokens = max_tokens
 
-    def describe_scene(self, theme_body: str, tag_names: Sequence[str]) -> str:
+    def describe_scene(
+        self,
+        theme_body: str,
+        tag_names: Sequence[str],
+        breadcrumb_digest: str = "",
+    ) -> str:
         tags_line = (
             f"Tags: {', '.join(tag_names)}" if tag_names else "Tags: (none)"
         )
+        develops_block = (
+            f"\n\nIt develops through these notes:\n{breadcrumb_digest.strip()}"
+            if breadcrumb_digest.strip()
+            else ""
+        )
         user_message = (
-            f"Theme: {theme_body.strip()}\n{tags_line}\n\n"
-            "Describe one concrete scene."
+            f"The theme opens with: {theme_body.strip()}\n{tags_line}"
+            f"{develops_block}\n\n"
+            "Describe one concrete scene that reflects the whole arc, not just the opening."
         )
         try:
             response = self._client.messages.create(

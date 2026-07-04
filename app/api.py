@@ -375,6 +375,10 @@ def generate_theme_image(
         result = service.generate_candidates(
             theme_body=theme.body_md,
             tag_names=[t.name for t in theme.tags],
+            breadcrumb_bodies=[
+                b.body_md
+                for b in sorted(theme.breadcrumbs, key=lambda b: b.created_at)
+            ],
         )
     except ImageGenerationError as e:
         logger.warning("Image generation failed for theme %d: %s", theme_id, e)

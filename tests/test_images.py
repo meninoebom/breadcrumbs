@@ -20,6 +20,7 @@ from app.images import (
     ThemeImageService,
     compose_prompt,
 )
+from app.images.service import build_breadcrumb_digest
 from app.images.providers import (
     ClaudeVisualizer,
     R2ImageStore,
@@ -34,9 +35,16 @@ class FakeVisualizer:
     def __init__(self, scene: str = "a quiet scene"):
         self.scene = scene
         self.calls: List[tuple] = []
+        self.digests: List[str] = []
 
-    def describe_scene(self, theme_body: str, tag_names: Sequence[str]) -> str:
+    def describe_scene(
+        self,
+        theme_body: str,
+        tag_names: Sequence[str],
+        breadcrumb_digest: str = "",
+    ) -> str:
         self.calls.append((theme_body, tuple(tag_names)))
+        self.digests.append(breadcrumb_digest)
         return self.scene
 
 
@@ -122,7 +130,7 @@ def test_service_commit_delegates_to_store():
 
 def test_service_visualizer_errors_bubble_up():
     class BrokenVisualizer:
-        def describe_scene(self, body, tags):
+        def describe_scene(self, body, tags, breadcrumb_digest=""):
             raise ImageGenerationError("visualizer exploded")
 
     service = _make_service(visualizer=BrokenVisualizer())
@@ -154,6 +162,88 @@ def test_style_suffix_is_non_empty():
     """Regression guard: the crumb.blog visual identity must always be present."""
     assert STYLE_SUFFIX
     assert "flat oil painting" in STYLE_SUFFIX
+
+
+# ========== Breadcrumb digest ==========
+
+
+def test_service_passes_breadcrumb_digest_to_visualizer():
+    visualizer = FakeVisualizer()
+    service = _make_service(visualizer=visualizer)
+    service.generate_candidates(
+        theme_body="On attention",
+        tag_names=[],
+        breadcrumb_bodies=["First note.", "Second, later note."],
+    )
+    digest = visualizer.digests[0]
+    assert "First note." in digest
+    assert "Second, later note." in digest
+
+
+def test_service_sends_empty_digest_when_no_breadcrumbs():
+    visualizer = FakeVisualizer()
+    service = _make_service(visualizer=visualizer)
+    service.generate_candidates(theme_body="x", tag_names=[])
+    assert visualizer.digests == [""]
+
+
+def test_digest_empty_for_no_bodies():
+    assert build_breadcrumb_digest([]) == ""
+
+
+def test_digest_empty_for_blank_bodies():
+    assert build_breadcrumb_digest(["", "   ", "\n"]) == ""
+
+
+def test_digest_includes_each_crumb_in_order():
+    digest = build_breadcrumb_digest(["alpha", "beta", "gamma"])
+    assert digest == "- alpha\n- beta\n- gamma"
+    # arc preserved: oldest first, most recent last
+    assert digest.index("alpha") < digest.index("beta") < digest.index("gamma")
+
+
+def test_digest_truncates_long_crumb_to_per_crumb_cap():
+    long_body = "x" * 500
+    digest = build_breadcrumb_digest([long_body], per_crumb_chars=150)
+    # "- " prefix + 150 chars + ellipsis
+    assert len(digest) == len("- ") + 150 + len("…")
+    assert digest.endswith("…")
+
+
+def test_digest_caps_total_and_keeps_most_recent():
+    # 20 crumbs of ~150 chars each would be ~3000 chars; cap is 1500.
+    bodies = [f"crumb{i} " + ("y" * 140) for i in range(20)]
+    digest = build_breadcrumb_digest(bodies, per_crumb_chars=150, total_chars=1500)
+    assert len(digest) <= 1500 + 40  # small slack for bullet prefixes
+    # the most recent crumb must survive; the oldest must be dropped
+    assert "crumb19" in digest
+    assert "crumb0 " not in digest
+
+
+def test_digest_always_keeps_at_least_the_most_recent():
+    # A single crumb longer than the total budget still yields the most recent.
+    digest = build_breadcrumb_digest(["z" * 5000], per_crumb_chars=150, total_chars=100)
+    assert digest.startswith("- ")
+    assert "z" in digest
+
+
+def test_digest_strips_markdown_image_syntax():
+    digest = build_breadcrumb_digest(["Look ![alt](https://cdn/x.png) at this"])
+    assert "https://cdn/x.png" not in digest
+    assert "![" not in digest
+    assert "Look" in digest and "at this" in digest
+
+
+def test_digest_keeps_link_text_drops_url():
+    digest = build_breadcrumb_digest(["See [the paper](https://arxiv.org/abs/1)"])
+    assert "the paper" in digest
+    assert "arxiv.org" not in digest
+
+
+def test_digest_strips_bare_urls():
+    digest = build_breadcrumb_digest(["ref https://example.com/foo done"])
+    assert "example.com" not in digest
+    assert "ref" in digest and "done" in digest
 
 
 # ========== ClaudeVisualizer ==========
@@ -190,6 +280,30 @@ def test_claude_visualizer_sends_theme_and_tags_in_user_message():
     user_msg = kwargs["messages"][0]["content"]
     assert "On AI agents" in user_msg
     assert "Tags: ai, agents" in user_msg
+
+
+def test_claude_visualizer_includes_digest_when_present():
+    client = MagicMock()
+    client.messages.create.return_value = _fake_anthropic_response("x")
+    visualizer = ClaudeVisualizer(client)
+
+    visualizer.describe_scene("Theme seed", ["t"], "- crumb one\n- crumb two")
+
+    user_msg = client.messages.create.call_args.kwargs["messages"][0]["content"]
+    assert "develops through these notes" in user_msg
+    assert "crumb one" in user_msg
+    assert "crumb two" in user_msg
+
+
+def test_claude_visualizer_omits_digest_block_when_empty():
+    client = MagicMock()
+    client.messages.create.return_value = _fake_anthropic_response("x")
+    visualizer = ClaudeVisualizer(client)
+
+    visualizer.describe_scene("Theme seed", ["t"], "")
+
+    user_msg = client.messages.create.call_args.kwargs["messages"][0]["content"]
+    assert "develops through these notes" not in user_msg
 
 
 def test_claude_visualizer_handles_empty_tags():
