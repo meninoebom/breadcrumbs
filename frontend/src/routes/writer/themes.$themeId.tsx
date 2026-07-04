@@ -122,7 +122,7 @@ function ThemeEditor() {
 
         <Separator />
 
-        <AddBreadcrumbForm themeId={id} />
+        <AddBreadcrumbForm key={id} themeId={id} />
       </div>
       </HighlightProvider>
     </div>
