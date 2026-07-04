@@ -5,6 +5,11 @@ import Markdown from "react-markdown"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import {
+  MarkdownPreview,
+  WritePreviewToggle,
+  type WritePreviewMode,
+} from "./markdown-field"
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -33,6 +38,7 @@ export function BreadcrumbItem({ node, themeId, depth = 0 }: BreadcrumbItemProps
   const queryClient = useQueryClient()
   const { highlightedId } = useHighlight()
   const [editing, setEditing] = useState(false)
+  const [editMode, setEditMode] = useState<WritePreviewMode>("write")
   const [replying, setReplying] = useState(false)
   const [bodyMd, setBodyMd] = useState(node.body_md)
   const isHighlighted = highlightedId === node.id
@@ -72,6 +78,12 @@ export function BreadcrumbItem({ node, themeId, depth = 0 }: BreadcrumbItemProps
   function handleCancel() {
     setBodyMd(node.body_md)
     setEditing(false)
+    setEditMode("write")
+  }
+
+  function startEditing() {
+    setEditMode("write")
+    setEditing(true)
   }
 
   const indent = INDENT_PX[Math.min(depth, 3)]
@@ -80,6 +92,9 @@ export function BreadcrumbItem({ node, themeId, depth = 0 }: BreadcrumbItemProps
   if (editing) {
     return (
       <div className="rounded-lg border p-3 space-y-3" style={indent > 0 ? { marginLeft: indent } : undefined}>
+        <div className="flex justify-end">
+          <WritePreviewToggle mode={editMode} onChange={setEditMode} />
+        </div>
         <Textarea
           value={bodyMd}
           onChange={(e) => setBodyMd(e.target.value)}
@@ -93,7 +108,9 @@ export function BreadcrumbItem({ node, themeId, depth = 0 }: BreadcrumbItemProps
           }}
           rows={4}
           autoFocus
+          className={cn(editMode === "preview" && "hidden")}
         />
+        {editMode === "preview" && <MarkdownPreview body={bodyMd} />}
         {editMutation.error && (
           <p className="text-sm text-destructive">
             {editMutation.error.message}
@@ -142,7 +159,7 @@ export function BreadcrumbItem({ node, themeId, depth = 0 }: BreadcrumbItemProps
             <Button
               size="icon-xs"
               variant="ghost"
-              onClick={() => setEditing(true)}
+              onClick={startEditing}
             >
               <Pencil className="size-3.5" />
             </Button>
