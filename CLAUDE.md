@@ -85,6 +85,21 @@ Notes:
     /hooks        - Custom React hooks
 ```
 
+**Reusable authoring primitives (reuse, don't rebuild):**
+- `hooks/use-draft.ts` — `useDraft(key, { enabled })`: localStorage-backed string
+  with debounced persist, restore-on-mount, and `clear()` on save. Remount the
+  consumer via a `key` prop when the storage key changes. Backs the breadcrumb
+  add form and the new-theme dialog so navigation never eats writing.
+- `components/writer/markdown-field.tsx` — `WritePreviewToggle` + `MarkdownPreview`
+  (matches the read view's `prose prose-sm`). Keep the textarea mounted (hide via
+  `cn(mode === "preview" && "hidden")`) so content, cursor, and the Cmd+Enter
+  binding survive the toggle.
+- `components/writer/highlight-context.tsx` — `HighlightProvider` / `useHighlight`
+  to flag a just-saved breadcrumb across the `BreadcrumbItem` recursion without
+  prop-drilling.
+- Breadcrumb save binding: **Cmd/Ctrl+Enter saves, plain Enter is a newline** in
+  all authoring textareas. Preserve this when adding new ones.
+
 ### Architecture Patterns
 - **Full-stack separation:** Backend and frontend in separate directories
 - **API-first design:** Backend exposes RESTful JSON API
