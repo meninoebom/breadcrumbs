@@ -4,6 +4,7 @@ import { ImagePlus, Plus, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { createBreadcrumb, uploadImage } from "@/lib/api"
+import { useDraft } from "@/hooks/use-draft"
 import { useHighlight } from "./highlight-context"
 
 interface AddBreadcrumbFormProps {
@@ -15,7 +16,11 @@ interface AddBreadcrumbFormProps {
 export function AddBreadcrumbForm({ themeId, parentId, onCancel }: AddBreadcrumbFormProps) {
   const queryClient = useQueryClient()
   const { highlight } = useHighlight()
-  const [bodyMd, setBodyMd] = useState("")
+  // Persist top-level drafts per theme; replies are transient and don't own one.
+  const [bodyMd, setBodyMd, clearDraft] = useDraft(
+    `draft:breadcrumb:${themeId}`,
+    { enabled: !parentId },
+  )
   const [uploading, setUploading] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -30,7 +35,7 @@ export function AddBreadcrumbForm({ themeId, parentId, onCancel }: AddBreadcrumb
       // The freshly added card highlights itself in the list — that entry
       // animation is the primary "saved" signal (see #80).
       highlight(created.id)
-      setBodyMd("")
+      clearDraft()
       if (parentId) {
         onCancel?.()
       } else {

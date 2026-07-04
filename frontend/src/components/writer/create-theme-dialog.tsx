@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { createTheme, suggestTags, updateTheme } from "@/lib/api"
+import { useDraft } from "@/hooks/use-draft"
 
 interface CreateThemeDialogProps {
   open: boolean
@@ -26,7 +27,7 @@ type Phase = "compose" | "review-tags"
 export function CreateThemeDialog({ open, onOpenChange }: CreateThemeDialogProps) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [body, setBody] = useState("")
+  const [body, setBody, clearBodyDraft] = useDraft("draft:new-theme")
   const [tags, setTags] = useState<string[]>([])
   const [phase, setPhase] = useState<Phase>("compose")
   const [createdThemeId, setCreatedThemeId] = useState<number | null>(null)
@@ -36,6 +37,9 @@ export function CreateThemeDialog({ open, onOpenChange }: CreateThemeDialogProps
   const createMutation = useMutation({
     mutationFn: createTheme,
     onSuccess: async (newTheme) => {
+      // The composed body is now a persisted theme, so the draft has served
+      // its purpose — clear it (and the field) before moving on.
+      clearBodyDraft()
       setCreatedThemeId(newTheme.id)
       setIsSuggesting(true)
       setPhase("review-tags")
@@ -68,7 +72,8 @@ export function CreateThemeDialog({ open, onOpenChange }: CreateThemeDialogProps
   })
 
   function resetForm() {
-    setBody("")
+    // Body is left to the draft hook: cancelling during compose keeps the
+    // writing (restored on reopen); creating the theme clears it explicitly.
     setTags([])
     setPhase("compose")
     setCreatedThemeId(null)
