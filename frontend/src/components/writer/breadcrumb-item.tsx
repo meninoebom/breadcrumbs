@@ -81,10 +81,12 @@ export function BreadcrumbItem({ node, themeId, depth = 0 }: BreadcrumbItemProps
           value={bodyMd}
           onChange={(e) => setBodyMd(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
+            // Cmd/Ctrl+Enter saves; plain Enter inserts a newline.
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
               e.preventDefault()
               if (bodyMd.trim()) handleSave()
             }
+            if (e.key === "Escape") handleCancel()
           }}
           rows={4}
           autoFocus
