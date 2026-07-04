@@ -21,6 +21,12 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { updateTheme, deleteTheme } from "@/lib/api"
+import { cn } from "@/lib/utils"
+import {
+  MarkdownPreview,
+  WritePreviewToggle,
+  type WritePreviewMode,
+} from "./markdown-field"
 import type { ThemePublic } from "@/lib/types"
 
 interface ThemeHeaderEditorProps {
@@ -32,6 +38,7 @@ export function ThemeHeaderEditor({ theme }: ThemeHeaderEditorProps) {
   const queryClient = useQueryClient()
 
   const [editing, setEditing] = useState(false)
+  const [bodyMode, setBodyMode] = useState<WritePreviewMode>("write")
   const [body, setBody] = useState(theme.body_md)
   const [tags, setTags] = useState<string[]>(theme.tags.map((t) => t.name))
 
@@ -51,6 +58,7 @@ export function ThemeHeaderEditor({ theme }: ThemeHeaderEditorProps) {
       queryClient.invalidateQueries({ queryKey: ["themes"] })
       queryClient.invalidateQueries({ queryKey: ["tags"] })
       setEditing(false)
+      setBodyMode("write")
     },
   })
 
@@ -84,19 +92,34 @@ export function ThemeHeaderEditor({ theme }: ThemeHeaderEditorProps) {
     setBody(theme.body_md)
     setTags(theme.tags.map((t) => t.name))
     setEditing(false)
+    setBodyMode("write")
+  }
+
+  function startEditing() {
+    setBodyMode("write")
+    setEditing(true)
   }
 
   if (editing) {
     return (
       <div className="space-y-4 rounded-lg border p-4">
         <div className="space-y-2">
-          <Label htmlFor="edit-body">Body</Label>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="edit-body">Body</Label>
+            <WritePreviewToggle mode={bodyMode} onChange={setBodyMode} />
+          </div>
           <Textarea
             id="edit-body"
             value={body}
             onChange={(e) => setBody(e.target.value)}
             rows={5}
+            className={cn(bodyMode === "preview" && "hidden")}
           />
+          {bodyMode === "preview" && (
+            <div className="rounded-md border p-3">
+              <MarkdownPreview body={body} />
+            </div>
+          )}
         </div>
         <div className="space-y-2">
           <Label htmlFor="edit-tags">Tags</Label>
@@ -137,7 +160,7 @@ export function ThemeHeaderEditor({ theme }: ThemeHeaderEditorProps) {
         <div className="prose prose-sm max-w-none">
           <Markdown>{theme.body_md}</Markdown>
         </div>
-        <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+        <Button size="sm" variant="outline" onClick={startEditing}>
           <Pencil className="size-4" />
           Edit
         </Button>

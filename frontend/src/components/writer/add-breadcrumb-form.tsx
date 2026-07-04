@@ -4,8 +4,14 @@ import { ImagePlus, Plus, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { createBreadcrumb, uploadImage } from "@/lib/api"
+import { cn } from "@/lib/utils"
 import { useDraft } from "@/hooks/use-draft"
 import { useHighlight } from "./highlight-context"
+import {
+  MarkdownPreview,
+  WritePreviewToggle,
+  type WritePreviewMode,
+} from "./markdown-field"
 
 interface AddBreadcrumbFormProps {
   themeId: number
@@ -22,6 +28,7 @@ export function AddBreadcrumbForm({ themeId, parentId, onCancel }: AddBreadcrumb
     { enabled: !parentId },
   )
   const [uploading, setUploading] = useState(false)
+  const [mode, setMode] = useState<WritePreviewMode>("write")
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -96,6 +103,11 @@ export function AddBreadcrumbForm({ themeId, parentId, onCancel }: AddBreadcrumb
         className="hidden"
         onChange={handleFileSelect}
       />
+      <div className="flex justify-end">
+        <WritePreviewToggle mode={mode} onChange={setMode} />
+      </div>
+      {/* Textarea stays mounted (just hidden) in preview so content, cursor,
+          and the Cmd+Enter binding survive the toggle. */}
       <Textarea
         ref={textareaRef}
         value={bodyMd}
@@ -104,7 +116,13 @@ export function AddBreadcrumbForm({ themeId, parentId, onCancel }: AddBreadcrumb
         placeholder={parentId ? "Reply..." : "Add a breadcrumb... (supports markdown)"}
         rows={parentId ? 2 : 3}
         autoFocus={!!parentId}
+        className={cn(mode === "preview" && "hidden")}
       />
+      {mode === "preview" && (
+        <div className="rounded-md border p-3">
+          <MarkdownPreview body={bodyMd} />
+        </div>
+      )}
       {mutation.error && (
         <p className="text-sm text-destructive">{mutation.error.message}</p>
       )}
