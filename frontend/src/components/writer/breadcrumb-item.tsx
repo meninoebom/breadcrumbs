@@ -17,8 +17,9 @@ import {
 } from "@/components/ui/alert-dialog"
 import { updateBreadcrumb, deleteBreadcrumb } from "@/lib/api"
 import { AddBreadcrumbForm } from "./add-breadcrumb-form"
+import { useHighlight } from "./highlight-context"
 import type { BreadcrumbNode } from "@/lib/tree"
-import { formatDate } from "@/lib/utils"
+import { cn, formatDate } from "@/lib/utils"
 
 const INDENT_PX = [0, 16, 32, 48] as const
 
@@ -30,9 +31,11 @@ interface BreadcrumbItemProps {
 
 export function BreadcrumbItem({ node, themeId, depth = 0 }: BreadcrumbItemProps) {
   const queryClient = useQueryClient()
+  const { highlightedId } = useHighlight()
   const [editing, setEditing] = useState(false)
   const [replying, setReplying] = useState(false)
   const [bodyMd, setBodyMd] = useState(node.body_md)
+  const isHighlighted = highlightedId === node.id
 
   // Sync local state when prop changes (e.g. after mutation + refetch)
   useEffect(() => {
@@ -116,7 +119,13 @@ export function BreadcrumbItem({ node, themeId, depth = 0 }: BreadcrumbItemProps
 
   return (
     <>
-      <div className="group rounded-lg border p-3 space-y-1" style={indent > 0 ? { marginLeft: indent } : undefined}>
+      <div
+        className={cn(
+          "group rounded-lg border p-3 space-y-1 transition-colors duration-1000",
+          isHighlighted && "border-primary/40 bg-primary/10 duration-0",
+        )}
+        style={indent > 0 ? { marginLeft: indent } : undefined}
+      >
         <div className="flex items-start justify-between gap-2">
           <div className="prose prose-sm max-w-none flex-1">
             <Markdown>{node.body_md}</Markdown>

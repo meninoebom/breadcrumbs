@@ -7,6 +7,7 @@ import { ThemeHeaderEditor } from "@/components/writer/theme-header-editor"
 import { ThemeImagePicker } from "@/components/writer/theme-image-picker"
 import { BreadcrumbItem } from "@/components/writer/breadcrumb-item"
 import { AddBreadcrumbForm } from "@/components/writer/add-breadcrumb-form"
+import { HighlightProvider } from "@/components/writer/highlight-context"
 import { Separator } from "@/components/ui/separator"
 
 export const Route = createFileRoute("/writer/themes/$themeId")({
@@ -86,6 +87,7 @@ function ThemeEditor() {
 
       <Separator />
 
+      <HighlightProvider>
       <div className="space-y-4">
         <h3 className="text-base font-semibold">
           Breadcrumbs
@@ -122,6 +124,7 @@ function ThemeEditor() {
 
         <AddBreadcrumbForm themeId={id} />
       </div>
+      </HighlightProvider>
     </div>
   )
 }
