@@ -6,6 +6,7 @@ Three layers, each tested in isolation:
 - __init__.py: the factory wires prod deps; covered by endpoint tests
 """
 
+import time
 from typing import List, Sequence
 from unittest.mock import MagicMock
 
@@ -350,6 +351,115 @@ def test_claude_visualizer_rejects_whitespace_only_response():
 
 
 # ========== ReplicateImageGenerator ==========
+#
+# These drive a scripted Replicate API through httpx.MockTransport rather than
+# stubbing our own call site. That matters: the bug this class was rewritten to fix
+# lived in the SDK's control flow (an unbounded poll loop reached only after a
+# long-poll expired), and a fake that raises instantly can never reproduce it.
+
+
+def _pred_json(pid: str, status: str, output=None, error=None) -> dict:
+    return {
+        "id": pid,
+        "model": "black-forest-labs/flux-schnell-lora",
+        "version": "v1",
+        "status": status,
+        "input": {"prompt": "x"},
+        "output": output,
+        "error": error,
+        "logs": "",
+        "created_at": "2026-07-21T00:00:00Z",
+        "urls": {
+            "get": f"https://api.replicate.com/v1/predictions/{pid}",
+            "cancel": f"https://api.replicate.com/v1/predictions/{pid}/cancel",
+        },
+    }
+
+
+class FakePool:
+    """A scripted Replicate API.
+
+    Each ``create`` consumes the next plan (the last plan repeats). A plan is either
+    an int HTTP status to fail the create with, or a dict of
+    ``{"statuses": [...], "output": [...]}`` where successive polls walk the status
+    list and the final entry repeats forever (that is how a wedged pool is modeled).
+    """
+
+    def __init__(self, *plans):
+        self.plans = list(plans) or [{"statuses": ["succeeded"], "output": ["https://r/x.webp"]}]
+        self.creates = 0
+        self.polls = 0
+        self.cancels: List[str] = []
+        self.bodies: List[dict] = []
+        self.headers: List[dict] = []
+        self.models: List[str] = []
+        self._live: dict = {}
+
+    def handler(self, request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if request.method == "POST" and path.endswith("/cancel"):
+            pid = path.split("/")[-2]
+            self.cancels.append(pid)
+            return httpx.Response(200, json=_pred_json(pid, "canceled"))
+        if request.method == "POST":
+            return self._create(request)
+        if request.method == "GET":
+            self.polls += 1
+            return self._get(path.rsplit("/", 1)[-1])
+        return httpx.Response(405, json={"detail": f"unexpected {request.method}"})
+
+    def _create(self, request: httpx.Request) -> httpx.Response:
+        import json as _json
+        self.bodies.append(_json.loads(request.content or b"{}"))
+        self.headers.append(dict(request.headers))
+        # /v1/models/{owner}/{name}/predictions
+        self.models.append(
+            request.url.path.removeprefix("/v1/models/").removesuffix("/predictions")
+        )
+        plan = self.plans[min(self.creates, len(self.plans) - 1)]
+        self.creates += 1
+        if isinstance(plan, int):
+            return httpx.Response(plan, json={"detail": "scripted failure"})
+        pid = f"p{self.creates}"
+        self._live[pid] = {
+            "statuses": list(plan["statuses"]),
+            "output": plan.get("output"),
+        }
+        return httpx.Response(201, json=self._render(pid))
+
+    def _advance(self, pid: str) -> str:
+        statuses = self._live[pid]["statuses"]
+        return statuses.pop(0) if len(statuses) > 1 else statuses[0]
+
+    def _render(self, pid: str) -> dict:
+        status = self._advance(pid)
+        output = self._live[pid]["output"] if status == "succeeded" else None
+        return _pred_json(pid, status, output)
+
+    def _get(self, pid: str) -> httpx.Response:
+        return httpx.Response(200, json=self._render(pid))
+
+
+def _generator(pool: "FakePool", **kwargs) -> ReplicateImageGenerator:
+    import replicate
+    client = replicate.Client(
+        api_token="fake", transport=httpx.MockTransport(pool.handler)
+    )
+    client.poll_interval = 0.01
+    kwargs.setdefault("num_outputs", 1)
+    kwargs.setdefault("starting_timeout_seconds", 0.2)
+    kwargs.setdefault("attempt_timeout_seconds", 0.4)
+    kwargs.setdefault("http_read_timeout_seconds", 0.3)
+    return ReplicateImageGenerator(client=client, **kwargs)
+
+
+SUCCESS = {"statuses": ["succeeded"], "output": ["https://r/ok.webp"]}
+WEDGED = {"statuses": ["starting"]}  # never leaves "starting" — the real failure mode
+# Reaches a GPU and renders, just not instantly. Must NOT be killed as wedged.
+SLOW_BUT_ALIVE = {
+    "statuses": ["starting", "processing", "processing", "processing", "succeeded"],
+    "output": ["https://r/slow.webp"],
+}
 
 
 def test_replicate_generator_missing_token(monkeypatch):
@@ -359,133 +469,235 @@ def test_replicate_generator_missing_token(monkeypatch):
         generator.generate("prompt")
 
 
-def test_replicate_generator_fans_out_one_call_per_candidate(monkeypatch):
-    """Each candidate is its own prediction with num_outputs=1 — avoids GPU OOM."""
-    monkeypatch.setenv("REPLICATE_API_TOKEN", "fake")
-    counter = {"n": 0}
+def test_wedged_prediction_is_cancelled_and_retried():
+    """THE regression test.
 
-    def fake_runner(model, input):
-        counter["n"] += 1
-        return [f"https://r/{counter['n']}.webp"]
+    A pool that accepts predictions but never starts them is the documented failure
+    mode. Previously replicate.run() would block in an unbounded poll loop here, so
+    the retry never fired and the abandoned prediction kept billing. Now: two
+    creates (the retry ran) and two cancels (neither orphan was left running).
+    """
+    pool = FakePool(WEDGED, WEDGED)
+    generator = _generator(pool, max_attempts=2)
 
-    generator = ReplicateImageGenerator(runner=fake_runner, num_outputs=4)
+    with pytest.raises(ImageGenerationError, match="All 1 candidates failed"):
+        generator.generate("prompt")
+
+    assert pool.creates == 2, "retry did not fire against a wedged pool"
+    assert len(pool.cancels) == 2, "abandoned predictions were left billing"
+
+
+def test_wedged_first_attempt_then_healthy_worker_succeeds():
+    """The whole point of retrying: re-roll off a stuck worker onto a good one."""
+    pool = FakePool(WEDGED, SUCCESS)
+    generator = _generator(pool, max_attempts=2)
+
+    assert generator.generate("prompt") == ["https://r/ok.webp"]
+    assert pool.creates == 2
+    assert pool.cancels == ["p1"]
+
+
+def test_wedged_pool_fails_over_to_the_next_model():
+    """A wedged pool stops scheduling everything, so retrying it is pointless.
+
+    Observed 2026-07-21: flux-schnell-lora stuck in "starting" past 45s while the
+    canonical pool succeeded in 25s. In 2026-05 the positions were reversed. The
+    retry must change pools, not just re-roll.
+    """
+    pool = FakePool(WEDGED, SUCCESS)
+    generator = _generator(
+        pool,
+        models=["pool-a/model", "pool-b/model"],
+        max_attempts=2,
+    )
+
+    assert generator.generate("prompt") == ["https://r/ok.webp"]
+    assert pool.models == ["pool-a/model", "pool-b/model"], "retry reused the bad pool"
+
+
+def test_slow_but_processing_prediction_is_not_killed_as_wedged():
+    """"Queued forever" and "slow" are different failures.
+
+    A healthy cold start was measured at 25s. Treating that as wedged would cancel
+    work about to succeed, and still bill for it.
+    """
+    pool = FakePool(SLOW_BUT_ALIVE)
+    generator = _generator(
+        pool,
+        starting_timeout_seconds=0.05,  # would fire immediately if status were ignored
+        attempt_timeout_seconds=5.0,
+        max_attempts=1,
+    )
+
+    assert generator.generate("prompt") == ["https://r/slow.webp"]
+    assert pool.cancels == [], "cancelled a prediction that was actively processing"
+
+
+def test_wedged_batch_stays_within_the_wall_clock_backstop():
+    pool = FakePool(WEDGED)
+    generator = _generator(
+        pool, num_outputs=4, max_attempts=2, attempt_timeout_seconds=0.2
+    )
+    started = time.monotonic()
+    with pytest.raises(ImageGenerationError):
+        generator.generate("prompt")
+    elapsed = time.monotonic() - started
+    assert elapsed < generator._timeout_seconds + 1.0
+
+
+@pytest.mark.parametrize("status", [400, 401, 402, 403, 422, 429])
+def test_account_level_errors_are_not_retried(status):
+    """Retrying a bad token, exhausted credit, or bad input cannot succeed.
+
+    These are identical on every model, so failing over cannot help. It only
+    doubles the doomed calls (4 candidates x 2 attempts = 8) and doubles
+    time-to-error. 429 is included deliberately: Replicate's documented throttle
+    below $5 credit needs a top-up, not another request.
+    """
+    pool = FakePool(status)
+    generator = _generator(pool, max_attempts=2)
+
+    with pytest.raises(ImageGenerationError):
+        generator.generate("prompt")
+
+    assert pool.creates == 1, f"HTTP {status} should not be retried"
+
+
+@pytest.mark.parametrize("status", [404, 500, 502, 503])
+def test_model_and_infrastructure_errors_fail_over(status):
+    """404 belongs here, not with the permanent errors.
+
+    Observed live 2026-07-21: Replicate returned "No adapter found for model" for a
+    model that had succeeded minutes earlier. In a failover list a 404 means "this
+    pool is unreachable", which is precisely when the next one should be tried.
+    """
+    pool = FakePool(status, SUCCESS)
+    generator = _generator(pool, max_attempts=2)
+
+    assert generator.generate("prompt") == ["https://r/ok.webp"]
+    assert pool.creates == 2
+
+
+def test_failed_prediction_is_retried_on_a_new_worker():
+    """A "failed" status is the CUDA-OOM shape; a re-roll usually lands healthy."""
+    pool = FakePool({"statuses": ["failed"]}, SUCCESS)
+    generator = _generator(pool, max_attempts=2)
+
+    assert generator.generate("prompt") == ["https://r/ok.webp"]
+    assert pool.creates == 2
+
+
+def test_succeeded_with_null_output_is_a_clean_error_not_a_crash():
+    """Guards a 500. A prediction can report success with output=None; list(None)
+    would raise TypeError, which api.py does not catch."""
+    pool = FakePool({"statuses": ["succeeded"], "output": None})
+    generator = _generator(pool, max_attempts=1)
+
+    with pytest.raises(ImageGenerationError, match="no output"):
+        generator.generate("prompt")
+
+
+def test_generator_fans_out_one_prediction_per_candidate():
+    pool = FakePool(SUCCESS)
+    generator = _generator(pool, num_outputs=4)
+
     urls = generator.generate("a scene")
 
     assert len(urls) == 4
-    assert counter["n"] == 4
-    assert set(urls) == {f"https://r/{i}.webp" for i in range(1, 5)}
+    assert pool.creates == 4
 
 
-def test_replicate_generator_sends_correct_input_shape(monkeypatch):
-    monkeypatch.setenv("REPLICATE_API_TOKEN", "fake")
-    fake_runner = MagicMock(return_value=["https://r/1.webp"])
-    generator = ReplicateImageGenerator(runner=fake_runner, num_outputs=1)
+def test_generator_sends_correct_input_shape_and_does_not_block_on_create():
+    pool = FakePool(SUCCESS)
+    generator = _generator(pool)
 
     generator.generate("a scene")
 
-    call_input = fake_runner.call_args.kwargs["input"]
-    assert call_input["prompt"] == "a scene"
-    assert call_input["num_outputs"] == 1
-    assert call_input["aspect_ratio"] == "1:1"
-    assert call_input["output_format"] == "webp"
+    body = pool.bodies[0]
+    assert body["input"]["prompt"] == "a scene"
+    assert body["input"]["num_outputs"] == 1
+    assert body["input"]["aspect_ratio"] == "1:1"
+    assert body["input"]["output_format"] == "webp"
+    # wait=False must not become a long-poll: we own the polling now.
+    assert "Prefer" not in pool.headers[0]
 
 
-def test_replicate_generator_handles_fileoutput_objects(monkeypatch):
-    monkeypatch.setenv("REPLICATE_API_TOKEN", "fake")
-    item = MagicMock()
-    item.url = "https://r/1.webp"
-    fake_runner = MagicMock(return_value=[item])
-    generator = ReplicateImageGenerator(runner=fake_runner, num_outputs=1)
+def test_generator_returns_partial_results_when_some_candidates_fail():
+    """Degraded beats dead: one bad candidate must not fail the whole batch."""
+    pool = FakePool(SUCCESS, 422, SUCCESS, SUCCESS)
+    generator = _generator(pool, num_outputs=4, max_attempts=1)
 
-    assert generator.generate("prompt") == ["https://r/1.webp"]
+    assert len(generator.generate("prompt")) == 3
 
 
-def test_replicate_generator_returns_partial_results_when_some_calls_fail(monkeypatch):
-    """One bad candidate shouldn't fail the whole batch — degraded is better than dead."""
-    import replicate.exceptions
-    monkeypatch.setenv("REPLICATE_API_TOKEN", "fake")
-    counter = {"n": 0}
+def test_generator_handles_fileoutput_style_objects():
+    class _FileOutput:
+        url = "https://r/from-object.webp"
 
-    def flaky_runner(model, input):
-        counter["n"] += 1
-        if counter["n"] == 2:
-            raise replicate.exceptions.ReplicateError("CUDA OOM on this one")
-        return [f"https://r/{counter['n']}.webp"]
-
-    generator = ReplicateImageGenerator(runner=flaky_runner, num_outputs=4)
-    urls = generator.generate("prompt")
-    assert len(urls) == 3
+    assert ReplicateImageGenerator._extract_url([_FileOutput()]) == "https://r/from-object.webp"
 
 
-def test_replicate_generator_raises_when_all_calls_fail(monkeypatch):
-    import replicate.exceptions
-    monkeypatch.setenv("REPLICATE_API_TOKEN", "fake")
-    broken = MagicMock(side_effect=replicate.exceptions.ReplicateError("upstream 502"))
-    generator = ReplicateImageGenerator(runner=broken, num_outputs=4)
+def test_batch_timeout_is_shared_not_per_candidate():
+    """Candidates run concurrently, so the budget is batch-wide. Per-future
+    timeouts would let a wedged pool burn num_outputs * timeout.
+
+    max_attempts=1 and a modest attempt timeout keep the abandoned worker threads
+    short-lived: they cannot be cancelled, and ThreadPoolExecutor joins them at
+    interpreter exit, so an over-long attempt here would add invisible wall clock
+    to every CI run without showing up in pytest's own timings.
+    """
+    pool = FakePool(WEDGED)
+    generator = _generator(
+        pool,
+        num_outputs=4,
+        timeout_seconds=0.3,
+        attempt_timeout_seconds=1.5,
+        max_attempts=1,
+    )
+    started = time.monotonic()
     with pytest.raises(ImageGenerationError, match="All 4 candidates failed"):
         generator.generate("prompt")
+    elapsed = time.monotonic() - started
+    assert elapsed < 2.0, f"batch took {elapsed:.1f}s — timeout is not shared"
 
 
-def _make_model_error(msg: str):
-    """ModelError takes a Prediction-like object whose .error it reports."""
-    import replicate.exceptions
-    stub = type("PredictionStub", (), {"error": msg})()
-    return replicate.exceptions.ModelError(stub)
-
-
-def test_replicate_generator_retries_once_on_model_error(monkeypatch):
-    """CUDA OOM lands on a random worker — one retry usually picks a healthy one."""
-    import replicate.exceptions
-    monkeypatch.setenv("REPLICATE_API_TOKEN", "fake")
-    calls = {"n": 0}
-
-    def oom_then_ok(model, input):
-        calls["n"] += 1
-        if calls["n"] == 1:
-            raise _make_model_error("CUDA out of memory")
-        return ["https://r/ok.webp"]
-
-    generator = ReplicateImageGenerator(runner=oom_then_ok, num_outputs=1)
-    urls = generator.generate("prompt")
-    assert urls == ["https://r/ok.webp"]
-    assert calls["n"] == 2  # one failure, one retry
-
-
-def test_replicate_generator_gives_up_after_repeated_model_errors(monkeypatch):
-    """If the retry also OOMs, the candidate is a clean failure (not a 500)."""
-    import replicate.exceptions
-    monkeypatch.setenv("REPLICATE_API_TOKEN", "fake")
-    persistent_oom = MagicMock(
-        side_effect=_make_model_error("CUDA out of memory")
-    )
-    generator = ReplicateImageGenerator(runner=persistent_oom, num_outputs=1)
-    with pytest.raises(ImageGenerationError, match="model error after retry"):
-        generator.generate("prompt")
-    assert persistent_oom.call_count == 2  # initial + one retry
-
-
-def test_replicate_generator_times_out_stuck_predictions(monkeypatch):
-    """A wedged Replicate prediction must not hang the request forever."""
-    import time
-    monkeypatch.setenv("REPLICATE_API_TOKEN", "fake")
-
-    def slow_runner(model, input):
-        time.sleep(5)  # would hang forever in the real failure mode
-        return ["never seen"]
-
+def test_backstop_is_derived_to_fit_the_full_retry_budget():
+    """Worst realistic path: N-1 attempts bail early as wedged, the last runs full."""
     generator = ReplicateImageGenerator(
-        runner=slow_runner, num_outputs=2, timeout_seconds=0.1
+        starting_timeout_seconds=15,
+        attempt_timeout_seconds=40,
+        http_read_timeout_seconds=10,
+        max_attempts=2,
     )
-    with pytest.raises(ImageGenerationError, match="timed out"):
-        generator.generate("prompt")
+    assert generator._timeout_seconds == 15 + 40 + 20
 
 
-def test_replicate_generator_wraps_http_errors(monkeypatch):
-    monkeypatch.setenv("REPLICATE_API_TOKEN", "fake")
-    broken = MagicMock(side_effect=httpx.ConnectError("timeout"))
-    generator = ReplicateImageGenerator(runner=broken, num_outputs=1)
-    with pytest.raises(ImageGenerationError, match="Network error"):
-        generator.generate("prompt")
+def test_explicit_timeout_overrides_the_derived_backstop():
+    generator = ReplicateImageGenerator(timeout_seconds=3.0, max_attempts=2)
+    assert generator._timeout_seconds == 3.0
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        (None, 20.0),      # unset
+        ("", 20.0),        # empty
+        ("   ", 20.0),     # whitespace
+        ("25s", 20.0),     # malformed: would crash app startup if it raised
+        ("0", 20.0),       # zero would disable the bound entirely
+        ("-5", 20.0),      # negative is nonsense
+        ("30", 30.0),      # valid
+    ],
+)
+def test_env_number_rejects_values_that_would_disable_the_bound(monkeypatch, raw, expected):
+    from app.images.providers import _env_number
+
+    if raw is None:
+        monkeypatch.delenv("SOME_KNOB", raising=False)
+    else:
+        monkeypatch.setenv("SOME_KNOB", raw)
+
+    assert _env_number("SOME_KNOB", 20.0, float) == expected
 
 
 # ========== R2ImageStore ==========
