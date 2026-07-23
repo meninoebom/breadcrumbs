@@ -19,6 +19,7 @@ import anthropic
 import httpx
 import replicate
 import replicate.exceptions
+import replicate.prediction
 
 from app.images.errors import ImageCommitError, ImageGenerationError
 from app.storage import put_object
@@ -148,85 +149,58 @@ def _env_number(name: str, default: float, cast: Callable[[str], float]) -> floa
     return value
 
 
-# We enforce attempt bounds ourselves rather than delegating to the SDK, because
+# We drive predictions.create(wait=False) and poll on our own clock, because
 # replicate.run() cannot be bounded from outside: once its "Prefer: wait" window
 # expires on a prediction that is still "starting", it falls into prediction.wait(),
-# a poll loop with no timeout and no iteration cap. So we drive
-# predictions.create(wait=False) and poll on our own clock.
+# a poll loop with no timeout and no iteration cap.
 #
-# Two bounds, because "queued forever" and "slow" are different problems:
-#
-# - A prediction still in "starting" has not been scheduled onto a GPU at all. That
-#   is the pool-wedge signature, and no amount of waiting fixes it, so we bail early
-#   and fail over to the other pool.
-# - Once it reaches "processing" it is genuinely rendering, and deserves real
-#   patience. A healthy cold start was measured at 25s, so a bound anywhere near
-#   that would cancel work that was about to succeed (and still bill us for it).
-DEFAULT_STARTING_TIMEOUT_SECONDS = _env_number(
-    "REPLICATE_STARTING_TIMEOUT_SECONDS", 15.0, float
-)
-DEFAULT_ATTEMPT_TIMEOUT_SECONDS = _env_number(
-    "REPLICATE_ATTEMPT_TIMEOUT_SECONDS", 40.0, float
-)
-DEFAULT_MAX_ATTEMPTS = int(_env_number("REPLICATE_MAX_ATTEMPTS", 2, lambda v: int(v)))
+# ONE deadline, not two. An earlier version split "starting" (15s) from "processing"
+# (40s) on the theory that a prediction still in "starting" had never been scheduled
+# and was therefore wedged. Measurement disproved it: healthy Flux Schnell cold starts
+# routinely sit in "starting" for 15-30s before they render, so the 15s bound cancelled
+# work that was about to succeed and failed over to the sibling pool for no reason. A
+# single generous deadline separates the cases cleanly — a real cold start finishes
+# well under it; a genuinely wedged pool never leaves "starting" and simply hits it.
+DEFAULT_TIMEOUT_SECONDS = _env_number("REPLICATE_TIMEOUT_SECONDS", 45.0, float)
 
-# Caps how long any single HTTP call (create, poll, cancel) may block. The SDK's
-# default read timeout is 30s, which is far longer than a poll needs and would let
-# one wedged reload blow the attempt budget.
-DEFAULT_HTTP_READ_TIMEOUT_SECONDS = _env_number(
-    "REPLICATE_HTTP_READ_TIMEOUT_SECONDS", 10.0, float
-)
+# A create() call can fail transiently on one pool: Replicate has returned
+# "No adapter found" 404s for a model that succeeded moments earlier. That is a blip on
+# this pool, not a reason to abandon it for a possibly-dead sibling, so we re-create on
+# the same pool up to this many times before failing over.
+DEFAULT_CREATE_ATTEMPTS = int(_env_number("REPLICATE_CREATE_ATTEMPTS", 2, int))
 
 
 class PredictionWedged(Exception):
-    """A prediction never reached a terminal state within its attempt budget."""
+    """A prediction never reached a terminal state within its deadline."""
 
 
-# Account- or request-level failures: identical on every model, so failing over
-# cannot help and only doubles the doomed calls. 402 in particular is Replicate's
-# out-of-credit signal, which needs a top-up rather than another request.
-#
-# Everything else, including 404, is treated as model- or infrastructure-level and
-# is worth trying on the next pool. 404 earns its place here empirically: Replicate
-# returned "No adapter found for model" for a model that had succeeded minutes
-# earlier, so it is not the permanent "no such model" a 404 usually implies.
+# Account- or request-level create failures: the same on every pool, so retrying or
+# failing over only doubles doomed calls. 402 is Replicate's out-of-credit signal (top
+# up, don't retry), 401 a bad token, 400/422 a bad request, 429 a rate limit. Anything
+# else — including 404 and 5xx — is transient or infra-level and worth another try.
 UNRECOVERABLE_STATUSES = frozenset({400, 401, 402, 403, 422, 429})
 
 
-def _is_retryable(error: BaseException) -> bool:
-    """Is this worth spending another attempt (on the next model) on?"""
-    if isinstance(error, PredictionWedged):
-        return True
-    if isinstance(error, replicate.exceptions.ModelError):
-        return True  # CUDA OOM and friends; a re-roll usually lands somewhere healthy
-    if isinstance(error, replicate.exceptions.ReplicateError):
-        status = getattr(error, "status", None)
-        if not isinstance(status, int):
-            return False
-        return status not in UNRECOVERABLE_STATUSES
-    if isinstance(error, httpx.HTTPError):
-        return True  # read timeout, connection reset: transport-level, not semantic
-    return False
+def _is_unrecoverable(error: replicate.exceptions.ReplicateError) -> bool:
+    """A create error that retrying or failing over cannot fix."""
+    status = getattr(error, "status", None)
+    return isinstance(status, int) and status in UNRECOVERABLE_STATUSES
 
 
 class ReplicateImageGenerator:
-    """Generates candidates via parallel Flux Schnell predictions.
+    """Generates candidate images via parallel Flux Schnell predictions.
 
-    Each candidate is its own prediction with ``num_outputs=1``, so a single CUDA OOM
-    or stuck worker costs one candidate rather than the whole batch.
+    Each candidate is its own prediction with ``num_outputs=1``, run concurrently, so
+    one stuck or failed prediction costs a single candidate rather than the whole batch.
+    ``generate`` returns every candidate that succeeded; the caller lets the user pick.
 
-    Time is bounded at three levels, and the ordering is the invariant:
+    Robustness is two simple rules, one per failure mode Replicate actually exhibits:
 
-    1. ``starting_timeout_seconds`` catches a pool that accepted the prediction but
-       never scheduled it. On expiry we cancel and fail over to the next model.
-    2. ``attempt_timeout_seconds`` bounds an attempt that *is* rendering. We create
-       non-blocking and poll ourselves, so this is a real bound rather than a
-       request we hope the SDK honors. On expiry the prediction is cancelled;
-       otherwise it keeps running on GPU and billing.
-    3. ``timeout_seconds`` is a batch-wide wall-clock backstop, derived from (2) and
-       ``max_attempts`` so it cannot be configured below the retry budget. It is a
-       last resort: Python cannot cancel a running thread, so if a worker thread
-       wedges anyway this is what lets the request return.
+    - A ``create`` that fails transiently (e.g. a "No adapter found" 404) is retried on
+      the *same* pool a few times before moving on — the pool is flaking, not down.
+    - A prediction that is created but never finishes within ``timeout_seconds`` means
+      the pool is wedged: we cancel it (so it stops billing) and fail over to the next
+      pool.
     """
 
     def __init__(
@@ -234,37 +208,22 @@ class ReplicateImageGenerator:
         models: Sequence[str] = DEFAULT_FLUX_MODELS,
         aspect_ratio: str = "1:1",
         num_outputs: int = 4,
-        timeout_seconds: Optional[float] = None,
-        starting_timeout_seconds: float = DEFAULT_STARTING_TIMEOUT_SECONDS,
-        attempt_timeout_seconds: float = DEFAULT_ATTEMPT_TIMEOUT_SECONDS,
-        max_attempts: int = DEFAULT_MAX_ATTEMPTS,
-        http_read_timeout_seconds: float = DEFAULT_HTTP_READ_TIMEOUT_SECONDS,
+        timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
+        create_attempts: int = DEFAULT_CREATE_ATTEMPTS,
         client: Optional[replicate.Client] = None,
     ) -> None:
         if not models:
             raise ValueError("models must not be empty")
         self._models = tuple(models)
-        self._starting_timeout_seconds = starting_timeout_seconds
         self._aspect_ratio = aspect_ratio
         self._num_outputs = num_outputs
-        self._attempt_timeout_seconds = attempt_timeout_seconds
-        self._max_attempts = max_attempts
-        self._http_read_timeout_seconds = http_read_timeout_seconds
+        self._timeout_seconds = timeout_seconds
+        self._create_attempts = create_attempts
         self._client = client
-        # Worst realistic path: every attempt but the last gives up early as wedged,
-        # and the last one runs its full budget. Each attempt can also overrun by at
-        # most one in-flight HTTP call. Derived rather than hand-set, because a
-        # backstop shorter than the retry budget silently makes retries unreachable,
-        # which is the bug this class was rewritten to fix.
-        self._timeout_seconds = (
-            timeout_seconds
-            if timeout_seconds is not None
-            else (
-                (max_attempts - 1) * starting_timeout_seconds
-                + attempt_timeout_seconds
-                + max_attempts * http_read_timeout_seconds
-            )
-        )
+        # Batch safety net: a candidate tries every pool once, each bounded by
+        # timeout_seconds, so its worst case is len(models) * timeout. Candidates run
+        # concurrently, so the batch shares one deadline rather than summing theirs.
+        self._batch_timeout_seconds = len(self._models) * timeout_seconds + 15.0
 
     def generate(self, prompt: str) -> List[str]:
         client = self._get_client()
@@ -280,8 +239,8 @@ class ReplicateImageGenerator:
             # One deadline shared across all candidates. They were all submitted at
             # once and run concurrently, so the budget is batch-wide: giving each
             # future its own fresh timeout would let a fully-wedged pool take
-            # num_outputs * timeout (4 * 60s = 4 minutes) to surface one error.
-            deadline = time.monotonic() + self._timeout_seconds
+            # num_outputs * timeout to surface one error.
+            deadline = time.monotonic() + self._batch_timeout_seconds
             for future in futures:
                 remaining = max(0.0, deadline - time.monotonic())
                 try:
@@ -316,81 +275,99 @@ class ReplicateImageGenerator:
         token = os.getenv("REPLICATE_API_TOKEN")
         if not token:
             raise ImageGenerationError("REPLICATE_API_TOKEN is not set")
+        # Cap any single HTTP call (create, poll, cancel) so one wedged request can't
+        # blow the deadline. The SDK's 30s default read timeout is far longer than a
+        # poll needs.
         self._client = replicate.Client(
             api_token=token,
-            timeout=httpx.Timeout(
-                5.0,
-                connect=5.0,
-                read=self._http_read_timeout_seconds,
-                write=self._http_read_timeout_seconds,
-                pool=10.0,
-            ),
+            timeout=httpx.Timeout(5.0, connect=5.0, read=10.0, write=10.0, pool=10.0),
         )
         return self._client
 
     def _generate_one(self, client: replicate.Client, prompt: str) -> str:
-        last_error: Optional[BaseException] = None
-        for attempt in range(1, self._max_attempts + 1):
-            # Move to the next pool on each retry. When a pool wedges it stops
-            # scheduling *everything*, so re-rolling against the same one just buys
-            # another timeout; the other pool is usually healthy at that moment.
-            model = self._models[(attempt - 1) % len(self._models)]
+        # Try each pool in order. Every failure is recorded so the caller can report
+        # what actually happened on *both* pools, not just the last one.
+        errors: List[str] = []
+        for model in self._models:
+            prediction = self._create(client, prompt, model, errors)
+            if prediction is None:
+                continue  # create kept failing transiently on this pool; fail over
             try:
-                return self._run_attempt(client, prompt, model)
+                return self._await_result(client, prediction)
             except (
                 PredictionWedged,
                 replicate.exceptions.ReplicateException,
                 httpx.HTTPError,
             ) as e:
-                if not _is_retryable(e):
-                    raise ImageGenerationError(f"Replicate error: {e}") from e
-                last_error = e
+                # Wedged, model error (CUDA OOM), or a poll blip: this pool isn't
+                # delivering, so fail over to the next one.
+                errors.append(f"{model}: {e}")
                 logger.warning(
-                    "Replicate attempt %d/%d on %s failed (%s): %s",
-                    attempt, self._max_attempts, model, type(e).__name__, e,
+                    "Replicate on %s failed (%s): %s", model, type(e).__name__, e
                 )
+        raise ImageGenerationError("; ".join(errors) or "no pools available")
 
-        raise ImageGenerationError(
-            f"Failed after {self._max_attempts} attempts: {last_error}"
-        ) from last_error
+    def _create(
+        self,
+        client: replicate.Client,
+        prompt: str,
+        model: str,
+        errors: List[str],
+    ) -> Optional["replicate.prediction.Prediction"]:
+        """Create a prediction, retrying transient failures on the same pool.
 
-    def _run_attempt(self, client: replicate.Client, prompt: str, model: str) -> str:
-        prediction = client.predictions.create(
-            model=model,
-            input={
-                "prompt": prompt,
-                "num_outputs": 1,
-                "aspect_ratio": self._aspect_ratio,
-                "output_format": "webp",
-                "output_quality": 90,
-            },
-            wait=False,
-        )
+        Returns the prediction, or ``None`` if this pool should be failed over.
+        Re-raises as ImageGenerationError for unrecoverable errors (bad token, out of
+        credit) — those are the same on every pool, so there is nothing to fail over to.
+        """
+        for attempt in range(1, self._create_attempts + 1):
+            try:
+                return client.predictions.create(
+                    model=model,
+                    input={
+                        "prompt": prompt,
+                        "num_outputs": 1,
+                        "aspect_ratio": self._aspect_ratio,
+                        "output_format": "webp",
+                        "output_quality": 90,
+                    },
+                    wait=False,
+                )
+            except replicate.exceptions.ReplicateError as e:
+                if _is_unrecoverable(e):
+                    raise ImageGenerationError(f"Replicate error: {e}") from e
+                errors.append(f"{model} create failed (attempt {attempt}): {e}")
+                logger.warning(
+                    "Replicate create on %s failed (attempt %d/%d): %s",
+                    model, attempt, self._create_attempts, e,
+                )
+            except httpx.HTTPError as e:
+                errors.append(f"{model} create network error (attempt {attempt}): {e}")
+                logger.warning(
+                    "Replicate create on %s network error (attempt %d/%d): %s",
+                    model, attempt, self._create_attempts, e,
+                )
+        return None
 
-        started = time.monotonic()
-        scheduling_deadline = started + self._starting_timeout_seconds
-        attempt_deadline = started + self._attempt_timeout_seconds
+    def _await_result(
+        self,
+        client: replicate.Client,
+        prediction: "replicate.prediction.Prediction",
+    ) -> str:
+        deadline = time.monotonic() + self._timeout_seconds
         while prediction.status not in TERMINAL_STATUSES:
-            now = time.monotonic()
-            # Read the status before cancelling; cancel() overwrites it.
-            stuck_at = prediction.status
-            if stuck_at == "starting" and now >= scheduling_deadline:
+            if time.monotonic() >= deadline:
+                stuck_at = prediction.status  # read before cancel() overwrites it
                 self._abandon(prediction)
                 raise PredictionWedged(
-                    f"{model} never left 'starting' within "
-                    f"{self._starting_timeout_seconds:.0f}s"
-                )
-            if now >= attempt_deadline:
-                self._abandon(prediction)
-                raise PredictionWedged(
-                    f"{model} still {stuck_at} after "
-                    f"{self._attempt_timeout_seconds:.0f}s"
+                    f"did not finish within {self._timeout_seconds:.0f}s "
+                    f"(stuck at '{stuck_at}')"
                 )
             time.sleep(client.poll_interval)
             prediction.reload()
 
         if prediction.status == "failed":
-            # Matches replicate.run()'s own handling; ModelError is retryable.
+            # Matches replicate.run()'s own handling; ModelError fails us over.
             raise replicate.exceptions.ModelError(prediction)
         if prediction.status == "canceled":
             raise ImageGenerationError("Prediction was canceled")

@@ -208,33 +208,31 @@ See `docs/log/README.md` for format and dimensions.
 - Docker builds run `tsc` before `vite build`, so the route tree must be pre-committed
 - If you add a new route file, run `pnpm build` (or `mise run build`) locally and commit the updated `routeTree.gen.ts`
 
-**Replicate theme image generation — two distinct 503 failure modes (`app/images/providers.py`):**
-- Low account credit (<$5) triggers Replicate's own throttle; error text mentions the $5 threshold. Fix: top up billing at replicate.com, not a code change.
-- Timeouts/network errors ("All N candidates failed: timed out...; Network error: The read operation timed out") are a *different* failure — check the Replicate dashboard balance first before assuming it's the credit issue.
+**Replicate theme image generation (`app/images/providers.py`) — the design and why it's simple:**
 
-**NEVER use `replicate.run()` here — it cannot be bounded from outside (`app/images/providers.py`):**
-- `replicate.run()` defaults to `wait=True`, which sets the httpx read timeout to **60.5s** (`replicate/prediction.py::_create_prediction_timeout`). Any wall-clock timeout shorter than that always fires first, making retry logic unreachable dead code.
-- Passing `wait=<int N>` does **not** fix it. When the long-poll expires with the prediction still `starting`, `run()` falls into `prediction.wait()`, a poll loop with **no timeout and no iteration cap**. That is exactly the accept-but-never-start pool failure we need to survive.
-- So we drive `client.predictions.create(..., wait=False)` and poll on our own clock. That is the whole reason this class looks the way it does; do not "simplify" it back to `run()`.
+The two Flux Schnell pools are unreliable in ways that are inherent to serverless GPU, so the whole class exists to survive them without pretending it can make them reliable. It does the minimum that actually works. Do not add "cleverness" back.
 
-**Replicate pools are a failover list, not a constant:**
-- `DEFAULT_FLUX_MODELS` holds canonical `flux-schnell` and the `-lora` sibling. Both have wedged at different times (2026-05: canonical wedged, `-lora` healthy; 2026-07: exactly reversed, measured). A retry moves to the **next pool** — re-rolling the same wedged pool just buys another timeout.
-- Diagnose with a 2-model probe before touching code: create one prediction per model, poll ~45s, see which ever leaves `starting`.
+**NEVER use `replicate.run()` here — it cannot be bounded from outside:**
+- `run()` defaults to `wait=True`, which sets the httpx read timeout to **60.5s** (`replicate/prediction.py::_create_prediction_timeout`). Any wall-clock timeout shorter than that fires first, making retry logic dead code.
+- Passing `wait=<int N>` does **not** fix it: when the long-poll expires with the prediction still `starting`, `run()` falls into `prediction.wait()`, a poll loop with **no timeout and no iteration cap** — exactly the accept-but-never-start failure we must survive.
+- So we drive `client.predictions.create(..., wait=False)` and poll on our own clock (`_await_result`). That is the whole reason this class is not one line; do not "simplify" it back to `run()`.
 
-**Two different timeouts, because "queued forever" and "slow" are different failures:**
-- `REPLICATE_STARTING_TIMEOUT_SECONDS` (15s): still in `starting` means never scheduled onto a GPU. Bail early and fail over.
-- `REPLICATE_ATTEMPT_TIMEOUT_SECONDS` (40s): once `processing` it is genuinely rendering and deserves patience. A healthy cold start measured 25s, so a tighter bound would cancel work about to succeed *and still bill for it*.
-- Abandoned predictions are **cancelled** (`prediction.cancel()`). A read timeout or wedge means the client gave up, not the prediction: it keeps running on GPU and billing until cancelled.
-- The batch backstop is **derived**, never hand-set: `(max_attempts-1)*starting + attempt + max_attempts*http_read`. A backstop below the retry budget silently makes retries unreachable, which was the original bug.
-- The backstop uses a **shared deadline** across candidates, not a fresh timeout per future. They run concurrently, so per-future timeouts let a wedged pool take `num_outputs * timeout` (4 x 60s = 4 min) to surface one error.
+**ONE timeout, not two (learned the hard way, 2026-07):**
+- `REPLICATE_TIMEOUT_SECONDS` (default 45s) is a single per-attempt deadline: a prediction that doesn't reach a terminal state within it is treated as wedged, cancelled, and failed over.
+- An earlier version split `starting` (15s) from `processing` (40s) on the theory that "still `starting`" meant "never scheduled, therefore wedged." **That was wrong and caused a production regression.** Measured reality: healthy Flux Schnell cold starts sit in `starting` for 15-30s before rendering, so the 15s bound cancelled work about to succeed and failed it over to the (then-dead) sibling pool. A single generous deadline separates the cases on its own — a real cold start finishes well under it; a genuinely wedged pool never leaves `starting` and simply hits it. Do not reintroduce a `starting`-specific bound.
 
-**Retry classification — `UNRECOVERABLE_STATUSES` is deliberate:**
-- Retry: wedge, `ModelError`, `httpx.HTTPError`, 5xx, and **404**. 404 is not permanent here: Replicate returned "No adapter found for model" for a model that had succeeded minutes earlier, so it means "this pool is unreachable", which is precisely when to try the next one.
-- Do NOT retry 400/401/402/403/422/429. These are identical on every model, so failover cannot help; it only doubles doomed calls. 402 is the out-of-credit signal that needs a top-up.
+**Two failure modes, two responses (this is the entire control flow):**
+- **Transient `create()` error** (e.g. Replicate's intermittent "No adapter found" 404, or a 5xx/network blip): retry the **same** pool up to `REPLICATE_CREATE_ATTEMPTS` (default 2) before failing over. It's a blip on that pool, not a reason to bounce to a possibly-dead sibling.
+- **Created but never finishes** (wedge, or a `failed`/OOM status): cancel it (`prediction.cancel()`, so it stops billing on the GPU) and **fail over to the next pool**. `DEFAULT_FLUX_MODELS` is a failover list precisely because the two pools wedge at different times (2026-05 canonical wedged / `-lora` healthy; 2026-07 reversed, measured).
+- Unrecoverable create errors (`UNRECOVERABLE_STATUSES` = 400/401/402/403/422/429) are identical on every pool, so neither retry nor failover helps — raise immediately. 402 is the out-of-credit signal (top up at replicate.com); 429 the sub-$5 throttle.
 
-**Env knobs are validated, not raw `int()`:** `_env_number` falls back loudly on malformed or non-positive values. These are module-level constants, so a bare `int("25s")` would crash app startup, and `0` would disable the very bound it configures.
+**Diagnose before touching code:** run a 2-model probe — create one prediction per pool, poll ~45s, see which ever leaves `starting`. A `starting` wedge on both pools at once looks like our 503; check whether it's one pool (failover territory) or an account-level problem (credit/throttle) before assuming a code bug.
 
-**Testing this file:** drive a scripted API through `httpx.MockTransport` (see `FakePool` in `tests/test_images.py`), never a fake that raises instantly. The original bug lived in the SDK's control flow and 49 green tests with instant-raising fakes coexisted with a fix that did nothing in production. Also keep test attempt timeouts short: `ThreadPoolExecutor` cannot cancel running threads and joins them at exit, so a long-running abandoned attempt adds invisible wall clock that pytest's own timings do not show.
+**Batch:** one prediction per candidate (`num_outputs=1`; `-lora` OOMs above 1), fanned out concurrently, sharing one wall-clock `_batch_timeout_seconds` (`len(models) * timeout + slack`). Per-future timeouts would let a wedged pool take `num_outputs * timeout` to surface one error.
+
+**Env knobs are validated, not raw `int()`:** `_env_number` falls back loudly on malformed or non-positive values (these are module-level constants; a bare `int("25s")` would crash startup and `0` would disable the bound).
+
+**Testing this file:** drive a scripted API through `httpx.MockTransport` (see `FakePool` in `tests/test_images.py`), never a fake that raises instantly — the bugs here live in the SDK's control flow. Keep test timeouts short: `ThreadPoolExecutor` cannot cancel running threads and joins them at exit, so a long abandoned attempt adds invisible wall clock.
 
 ## Deep-Dive References
 - **Data model:** `docs/data-model.md`

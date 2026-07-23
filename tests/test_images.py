@@ -447,17 +447,16 @@ def _generator(pool: "FakePool", **kwargs) -> ReplicateImageGenerator:
     )
     client.poll_interval = 0.01
     kwargs.setdefault("num_outputs", 1)
-    kwargs.setdefault("starting_timeout_seconds", 0.2)
-    kwargs.setdefault("attempt_timeout_seconds", 0.4)
-    kwargs.setdefault("http_read_timeout_seconds", 0.3)
+    kwargs.setdefault("timeout_seconds", 0.3)
     return ReplicateImageGenerator(client=client, **kwargs)
 
 
 SUCCESS = {"statuses": ["succeeded"], "output": ["https://r/ok.webp"]}
 WEDGED = {"statuses": ["starting"]}  # never leaves "starting" — the real failure mode
-# Reaches a GPU and renders, just not instantly. Must NOT be killed as wedged.
-SLOW_BUT_ALIVE = {
-    "statuses": ["starting", "processing", "processing", "processing", "succeeded"],
+# Sits in "starting" for several polls before it renders. The old two-tier design
+# killed this at the 15s "starting" bound; one generous deadline must let it finish.
+SLOW_TO_SCHEDULE = {
+    "statuses": ["starting", "starting", "starting", "processing", "succeeded"],
     "output": ["https://r/slow.webp"],
 }
 
@@ -469,28 +468,28 @@ def test_replicate_generator_missing_token(monkeypatch):
         generator.generate("prompt")
 
 
-def test_wedged_prediction_is_cancelled_and_retried():
+def test_wedged_prediction_is_cancelled_and_failed_over():
     """THE regression test.
 
     A pool that accepts predictions but never starts them is the documented failure
-    mode. Previously replicate.run() would block in an unbounded poll loop here, so
-    the retry never fired and the abandoned prediction kept billing. Now: two
-    creates (the retry ran) and two cancels (neither orphan was left running).
+    mode. replicate.run() would block here in an unbounded poll loop; we bound it,
+    cancel the abandoned prediction so it stops billing, and fail over to the other
+    pool. Both default pools wedge here: two creates, two cancels, one clean error.
     """
     pool = FakePool(WEDGED, WEDGED)
-    generator = _generator(pool, max_attempts=2)
+    generator = _generator(pool)
 
     with pytest.raises(ImageGenerationError, match="All 1 candidates failed"):
         generator.generate("prompt")
 
-    assert pool.creates == 2, "retry did not fire against a wedged pool"
+    assert pool.creates == 2, "did not fail over to the second pool"
     assert len(pool.cancels) == 2, "abandoned predictions were left billing"
 
 
-def test_wedged_first_attempt_then_healthy_worker_succeeds():
-    """The whole point of retrying: re-roll off a stuck worker onto a good one."""
+def test_wedged_first_pool_then_healthy_second_pool_succeeds():
+    """Failover's whole point: a wedged pool must not sink the candidate."""
     pool = FakePool(WEDGED, SUCCESS)
-    generator = _generator(pool, max_attempts=2)
+    generator = _generator(pool)
 
     assert generator.generate("prompt") == ["https://r/ok.webp"]
     assert pool.creates == 2
@@ -498,90 +497,74 @@ def test_wedged_first_attempt_then_healthy_worker_succeeds():
 
 
 def test_wedged_pool_fails_over_to_the_next_model():
-    """A wedged pool stops scheduling everything, so retrying it is pointless.
+    """A wedged pool stops scheduling everything, so the retry must change pools.
 
-    Observed 2026-07-21: flux-schnell-lora stuck in "starting" past 45s while the
-    canonical pool succeeded in 25s. In 2026-05 the positions were reversed. The
-    retry must change pools, not just re-roll.
+    Observed 2026-07: flux-schnell-lora stuck in "starting" past 45s while the
+    canonical pool succeeded in seconds. Failover moves to the next pool; it does not
+    re-roll the wedged one.
     """
     pool = FakePool(WEDGED, SUCCESS)
-    generator = _generator(
-        pool,
-        models=["pool-a/model", "pool-b/model"],
-        max_attempts=2,
-    )
+    generator = _generator(pool, models=["pool-a/model", "pool-b/model"])
 
     assert generator.generate("prompt") == ["https://r/ok.webp"]
     assert pool.models == ["pool-a/model", "pool-b/model"], "retry reused the bad pool"
 
 
-def test_slow_but_processing_prediction_is_not_killed_as_wedged():
-    """"Queued forever" and "slow" are different failures.
-
-    A healthy cold start was measured at 25s. Treating that as wedged would cancel
-    work about to succeed, and still bill for it.
-    """
-    pool = FakePool(SLOW_BUT_ALIVE)
-    generator = _generator(
-        pool,
-        starting_timeout_seconds=0.05,  # would fire immediately if status were ignored
-        attempt_timeout_seconds=5.0,
-        max_attempts=1,
-    )
+def test_slow_to_schedule_prediction_is_not_killed():
+    """The regression #94 introduced: a healthy cold start sits in "starting" for
+    15-30s. The old 15s "starting" bound cancelled it and failed over for no reason;
+    one generous deadline lets it finish. Here it stays "starting" for three polls
+    before it renders."""
+    pool = FakePool(SLOW_TO_SCHEDULE)
+    generator = _generator(pool, timeout_seconds=5.0)
 
     assert generator.generate("prompt") == ["https://r/slow.webp"]
-    assert pool.cancels == [], "cancelled a prediction that was actively processing"
-
-
-def test_wedged_batch_stays_within_the_wall_clock_backstop():
-    pool = FakePool(WEDGED)
-    generator = _generator(
-        pool, num_outputs=4, max_attempts=2, attempt_timeout_seconds=0.2
-    )
-    started = time.monotonic()
-    with pytest.raises(ImageGenerationError):
-        generator.generate("prompt")
-    elapsed = time.monotonic() - started
-    assert elapsed < generator._timeout_seconds + 1.0
+    assert pool.cancels == [], "cancelled a prediction that was still scheduling"
 
 
 @pytest.mark.parametrize("status", [400, 401, 402, 403, 422, 429])
-def test_account_level_errors_are_not_retried(status):
-    """Retrying a bad token, exhausted credit, or bad input cannot succeed.
-
-    These are identical on every model, so failing over cannot help. It only
-    doubles the doomed calls (4 candidates x 2 attempts = 8) and doubles
-    time-to-error. 429 is included deliberately: Replicate's documented throttle
-    below $5 credit needs a top-up, not another request.
-    """
+def test_account_level_create_errors_are_not_retried_or_failed_over(status):
+    """A bad token, exhausted credit, bad input, or rate limit is identical on every
+    pool, so retrying the same pool or failing over only doubles doomed calls. 402 is
+    the out-of-credit signal (top up); 429 the documented sub-$5 throttle."""
     pool = FakePool(status)
-    generator = _generator(pool, max_attempts=2)
+    generator = _generator(pool)
 
     with pytest.raises(ImageGenerationError):
         generator.generate("prompt")
 
-    assert pool.creates == 1, f"HTTP {status} should not be retried"
+    assert pool.creates == 1, f"HTTP {status} should not be retried or failed over"
 
 
 @pytest.mark.parametrize("status", [404, 500, 502, 503])
-def test_model_and_infrastructure_errors_fail_over(status):
-    """404 belongs here, not with the permanent errors.
-
-    Observed live 2026-07-21: Replicate returned "No adapter found for model" for a
-    model that had succeeded minutes earlier. In a failover list a 404 means "this
-    pool is unreachable", which is precisely when the next one should be tried.
-    """
+def test_transient_create_error_retries_the_same_pool(status):
+    """The flux-schnell fix. Replicate returns transient "No adapter found" 404s (and
+    5xx) for a pool that works moments later. That is a blip on THIS pool, so we
+    re-create on the same pool rather than bouncing to a possibly-dead sibling."""
     pool = FakePool(status, SUCCESS)
-    generator = _generator(pool, max_attempts=2)
+    generator = _generator(pool, models=["pool-a/model", "pool-b/model"])
 
     assert generator.generate("prompt") == ["https://r/ok.webp"]
     assert pool.creates == 2
+    assert pool.models == ["pool-a/model", "pool-a/model"], "did not retry same pool"
 
 
-def test_failed_prediction_is_retried_on_a_new_worker():
-    """A "failed" status is the CUDA-OOM shape; a re-roll usually lands healthy."""
+def test_create_errors_fail_over_after_exhausting_the_same_pool():
+    """Once a pool's create attempts are spent, move on: pool-a 404s both attempts,
+    then pool-b succeeds."""
+    pool = FakePool(404, 404, SUCCESS)
+    generator = _generator(
+        pool, models=["pool-a/model", "pool-b/model"], create_attempts=2
+    )
+
+    assert generator.generate("prompt") == ["https://r/ok.webp"]
+    assert pool.models == ["pool-a/model", "pool-a/model", "pool-b/model"]
+
+
+def test_failed_prediction_fails_over_to_the_next_pool():
+    """A "failed" status is the CUDA-OOM shape; failing over usually lands healthy."""
     pool = FakePool({"statuses": ["failed"]}, SUCCESS)
-    generator = _generator(pool, max_attempts=2)
+    generator = _generator(pool)
 
     assert generator.generate("prompt") == ["https://r/ok.webp"]
     assert pool.creates == 2
@@ -591,7 +574,7 @@ def test_succeeded_with_null_output_is_a_clean_error_not_a_crash():
     """Guards a 500. A prediction can report success with output=None; list(None)
     would raise TypeError, which api.py does not catch."""
     pool = FakePool({"statuses": ["succeeded"], "output": None})
-    generator = _generator(pool, max_attempts=1)
+    generator = _generator(pool)
 
     with pytest.raises(ImageGenerationError, match="no output"):
         generator.generate("prompt")
@@ -625,7 +608,7 @@ def test_generator_sends_correct_input_shape_and_does_not_block_on_create():
 def test_generator_returns_partial_results_when_some_candidates_fail():
     """Degraded beats dead: one bad candidate must not fail the whole batch."""
     pool = FakePool(SUCCESS, 422, SUCCESS, SUCCESS)
-    generator = _generator(pool, num_outputs=4, max_attempts=1)
+    generator = _generator(pool, num_outputs=4)
 
     assert len(generator.generate("prompt")) == 3
 
@@ -637,44 +620,25 @@ def test_generator_handles_fileoutput_style_objects():
     assert ReplicateImageGenerator._extract_url([_FileOutput()]) == "https://r/from-object.webp"
 
 
-def test_batch_timeout_is_shared_not_per_candidate():
-    """Candidates run concurrently, so the budget is batch-wide. Per-future
-    timeouts would let a wedged pool burn num_outputs * timeout.
-
-    max_attempts=1 and a modest attempt timeout keep the abandoned worker threads
-    short-lived: they cannot be cancelled, and ThreadPoolExecutor joins them at
-    interpreter exit, so an over-long attempt here would add invisible wall clock
-    to every CI run without showing up in pytest's own timings.
-    """
+def test_wedged_batch_returns_concurrently_not_summed():
+    """Candidates run in parallel and share one deadline. Four wedged candidates,
+    each trying two pools, must surface in roughly one candidate's time, not four."""
     pool = FakePool(WEDGED)
-    generator = _generator(
-        pool,
-        num_outputs=4,
-        timeout_seconds=0.3,
-        attempt_timeout_seconds=1.5,
-        max_attempts=1,
-    )
+    generator = _generator(pool, num_outputs=4, timeout_seconds=0.2)
+
     started = time.monotonic()
     with pytest.raises(ImageGenerationError, match="All 4 candidates failed"):
         generator.generate("prompt")
     elapsed = time.monotonic() - started
-    assert elapsed < 2.0, f"batch took {elapsed:.1f}s — timeout is not shared"
+
+    assert elapsed < 2.0, f"batch took {elapsed:.1f}s — candidates were not concurrent"
 
 
-def test_backstop_is_derived_to_fit_the_full_retry_budget():
-    """Worst realistic path: N-1 attempts bail early as wedged, the last runs full."""
-    generator = ReplicateImageGenerator(
-        starting_timeout_seconds=15,
-        attempt_timeout_seconds=40,
-        http_read_timeout_seconds=10,
-        max_attempts=2,
-    )
-    assert generator._timeout_seconds == 15 + 40 + 20
-
-
-def test_explicit_timeout_overrides_the_derived_backstop():
-    generator = ReplicateImageGenerator(timeout_seconds=3.0, max_attempts=2)
-    assert generator._timeout_seconds == 3.0
+def test_batch_timeout_scales_with_pools_and_per_attempt_timeout():
+    """A candidate tries each pool once, so the batch backstop is len(models) *
+    timeout (plus HTTP slack), never below the per-candidate budget."""
+    generator = ReplicateImageGenerator(models=["a/m", "b/m"], timeout_seconds=10.0)
+    assert generator._batch_timeout_seconds == 2 * 10.0 + 15.0
 
 
 @pytest.mark.parametrize(
