@@ -1,0 +1,36 @@
+# Keep the build context small and deterministic. Anything the image builds itself
+# (node_modules, dist, .venv) or that is host-only (envs, git, caches, tests) is
+# excluded so it can never leak into a layer or bust the cache.
+
+.git
+.github
+.gitignore
+
+# Python
+.venv
+venv
+__pycache__
+**/__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+tests
+
+# Node / frontend build artifacts (rebuilt inside the frontend stage)
+frontend/node_modules
+frontend/dist
+
+# Local env + secrets (Railway injects these at runtime)
+.env
+.env.*
+!.env.example
+
+# Tooling / docs / agent scratch not needed at runtime
+.llm
+.claude
+docs
+mise.toml
+nixpacks.toml
+README.dev.md
+*.md
+!README.md
