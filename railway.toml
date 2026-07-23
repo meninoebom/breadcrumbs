@@ -1,6 +1,7 @@
 [build]
-builder = "nixpacks"
-buildCommand = "cd frontend && corepack enable && pnpm install --frozen-lockfile && pnpm run build && cd .. && uv sync"
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
 
-[deploy]
-startCommand = "uv run alembic upgrade head && uv run python main.py"
+# How the container starts (migrations, then boot) lives in the Dockerfile CMD, so
+# there is a single source of truth reproducible with a plain `docker run`. Every
+# tool version is pinned in the Dockerfile; nothing is inferred at build time.
