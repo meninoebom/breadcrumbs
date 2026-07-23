@@ -27,11 +27,30 @@ mise tasks ls       # all tasks
 
 Notes:
 - **Frontend is on pnpm** (version pinned via `packageManager` and `mise.toml [tools]`); backend
-  is on uv. The Railway buildCommand uses `corepack enable && pnpm install --frozen-lockfile`.
+  is on uv. `mise` is for local dev only.
 - **uv owns the Python venv, not mise** — mise's `python = "3.13"` pin matches `.python-version`,
   but `uv run` reuses an existing `.venv` regardless. `rm -rf .venv && uv sync` rebuilds on 3.13.
 - **No ruff wired here yet**, so `check:api` is pytest-only.
 - **CI gotcha:** never pipe `mise run check` through `tail` — it masks mise's exit code.
+
+## Production build & deploy
+
+Production is built from a committed multi-stage **`Dockerfile`** (not the local mise
+setup, which mise never touches prod). Every tool version is pinned in-repo: Node 22,
+pnpm 10.33.0 (installed directly with `npm i -g`, **not** corepack), Python 3.13,
+uv 0.8.12. `railway.toml` sets `builder = "dockerfile"`; there is no `nixpacks.toml`.
+
+- **Never reintroduce Nixpacks or corepack here.** The prior Nixpacks build silently
+  broke deploys for ~2 months (it defaulted to Node 18, and corepack failed signature
+  verification on a rotated npm key). The Dockerfile exists specifically to make the
+  build explicit and reproducible. Full postmortem: `docs/solutions/deployment-gotchas.md`.
+- **Test build changes locally before pushing:** `docker build -t bc .` then run against
+  a throwaway Postgres (SQLite can't run the Postgres-only migrations). The container's
+  `CMD` runs `alembic upgrade head` then boots uvicorn; the app serves the built SPA from
+  `frontend/dist`.
+- **Runtime config lives in Railway**, not the image: `PORT`, `ENVIRONMENT=production`,
+  `DATABASE_URL`, `R2_*`, `ANTHROPIC_API_KEY`, `REPLICATE_API_TOKEN`, `JWT_SECRET`,
+  `ADMIN_PASSWORD`. Nothing sensitive is baked into the Dockerfile.
 
 ## Development Workflow
 
