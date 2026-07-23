@@ -1,0 +1,40 @@
+name: Deploy
+
+# Single source of production deploys. Railway's own git trigger is intentionally
+# left disconnected so that deploys run here instead, where a failure shows up as a
+# red check on the commit. That visibility is the point: the build once broke and
+# stayed broken in production for ~2 months because failed Railway builds are silent
+# (Railway just keeps serving the last good deploy). A red X in GitHub can't be
+# missed the same way. See docs/solutions/deployment-gotchas.md.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# One deploy at a time. If commits land while a deploy runs, let it finish (never
+# cancel a deploy mid-flight) and run the next afterwards.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Railway CLI
+        run: npm install --global @railway/cli@5.28.0
+
+      # Uploads this checkout and builds it via the repo Dockerfile on Railway,
+      # streaming build logs. `railway up --ci` exits non-zero if the build or
+      # deploy fails, which fails this job -> the red check we want.
+      # RAILWAY_TOKEN is a project token scoped to the production environment.
+      - name: Deploy to Railway
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: railway up --ci --service "Breadcrumbs Web App Server"
