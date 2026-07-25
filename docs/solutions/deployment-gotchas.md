@@ -60,6 +60,52 @@ silently **creates a new Railway project named after the current folder** and de
 there. Always `railway link -p <project> -e <env> -s <service>` first, and confirm the
 build-log URL's project id before trusting a CLI deploy.
 
+### Why this keeps happening: links are keyed by absolute path, globally
+
+The link is not stored in the repo. There is no `.railway/` directory here and nothing
+in git marks this checkout as linked. Railway records links in a single global file,
+`~/.railway/config.json`, keyed by **absolute directory path**:
+
+```json
+"/Users/brandon/dev/breadcrumbs": { "name": "Breadcrumbs", "project": "0afd3e64-...", ... }
+```
+
+Three consequences, all of which have bitten this project:
+
+1. **Every git worktree is a separate, unlinked directory.** A worktree of this repo
+   shares the git history but has a different absolute path, so it starts with no
+   Railway link. This is how the stray `cottontail-butte` project was created: a
+   `railway up` from a fresh warp worktree of that name.
+2. **Agent scratchpad directories are also unlinked paths**, and they get linked by
+   accident. The config currently contains an entry for a
+   `/private/tmp/claude-501/.../scratchpad/rw` path pointing at Breadcrumbs.
+3. **Entries survive directory deletion.** Most paths in the file no longer exist, so
+   the config accumulates stale links and gives a misleading picture of what is wired
+   to what.
+
+The dangerous case is `/private/tmp` being linked to an unrelated project
+(`Bad Landlord Report` at time of writing). A `railway up` run from a scratchpad root
+would not create a new project and would not prompt. It would deploy this repo's code
+into that unrelated project.
+
+**Rule: run `railway` commands only from `/Users/brandon/dev/breadcrumbs`.** Not from a
+worktree, not from a scratchpad. Before any CLI deploy, confirm the target:
+
+```bash
+railway status          # must print Project: Breadcrumbs, Environment: production
+```
+
+To audit which paths are linked and which are stale:
+
+```bash
+python3 -c "
+import json,os
+d=json.load(open(os.path.expanduser('~/.railway/config.json')))
+for p,v in d.get('projects',{}).items():
+    print(('EXISTS ' if os.path.isdir(p) else 'GONE   ')+p+'  -> '+v.get('name','?'))
+"
+```
+
 ## Migrations are Postgres-only
 
 At least one Alembic migration uses Postgres-specific SQL
