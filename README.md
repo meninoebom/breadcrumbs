@@ -12,22 +12,33 @@ Inspired by [a public Google Doc](https://docs.google.com/document/d/1GrEFrdF_Iz
 
 ## Tech Stack
 
-- **Backend:** Python, FastAPI, PostgreSQL, SQLModel
-- **Frontend:** React, TanStack Router/Query, Tailwind CSS, Shadcn UI
-- **Deployment:** Railway (single service, auto-deploy from main)
+- **Backend:** Python 3.13, FastAPI, PostgreSQL, SQLModel (managed with `uv`)
+- **Frontend:** React 19, TanStack Router/Query, Tailwind CSS, Shadcn UI, Vite (on `pnpm`)
+- **Deployment:** Railway, built from the committed `Dockerfile`, deployed by GitHub Actions on push to `main`
 - **Domain:** [crumb.blog](https://crumb.blog) via CNAME to Railway
 
 ## Development
+
+Toolchain versions are pinned in `mise.toml`, so [mise](https://mise.jdx.dev) sets up
+both halves and runs them together:
+
+```bash
+mise install    # node 22, pnpm 10.33.0, python 3.13, uv
+mise run dev    # frontend + backend
+mise run check  # lint, types, and tests — the gate before committing
+```
+
+Running them separately:
 
 ```bash
 # Backend (from project root)
 uv sync
 uv run dev  # http://localhost:8100
 
-# Frontend
+# Frontend — pnpm, not npm (the version is pinned via packageManager)
 cd frontend
-npm install
-npm run dev  # http://localhost:5173
+pnpm install
+pnpm dev  # http://localhost:5173
 ```
 
 See `CLAUDE.md` for conventions and `docs/roadmap.md` for what's next.
