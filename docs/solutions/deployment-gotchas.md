@@ -50,8 +50,11 @@ build leaves the previous deployment serving, with no signal in GitHub. Two defe
 
 - After merging anything that touches the build, confirm a new deployment actually
   went live (check the Railway dashboard, or `railway deployment list`).
-- Consider enabling Railway deploy-failure notifications, or a GitHub Actions deploy
-  job, so a failed deploy surfaces where the team already looks.
+- **Fixed 2026-07-25:** deploys now run from `.github/workflows/deploy.yml` on push to
+  `main`, so a failed deploy is a red X on the commit instead of silence. Railway's
+  native git trigger stays disconnected on purpose; re-enabling it would both restore
+  the silent-failure mode and cause double deploys. See the deploy section of
+  `CLAUDE.md` for the token setup and rotation steps.
 
 ## `railway up` from an unlinked directory creates a new project
 
