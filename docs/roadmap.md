@@ -5,7 +5,7 @@
 - **Data model** — SQLModel models, cascade deletes, PostgreSQL + Alembic migrations
 - **API** — 11 REST endpoints, search, filtering, pagination, 83 tests
 - **Frontend** — Reader stream, writer dashboard, tag browsing, search
-- **Deploy** — Railway, CI/CD, custom domain (crumb.blog)
+- **Deploy** — Railway, CI/CD, custom domain (crumb.blog). Hardened 2026-07: production builds from a committed, version-pinned `Dockerfile` (replacing Nixpacks, which had silently broken deploys for ~2 months), and deploys run from GitHub Actions on push to `main` so failures surface as a red check instead of silence. See `docs/solutions/deployment-gotchas.md`.
 - **Auth** — JWT auth protecting all mutating endpoints
 - **Tag navigation** — Usage-based sorting, 5-tier opacity gradient, tag search
 - **Tag authoring UX** — Chip input with typeahead suggestions, comma/Enter to commit

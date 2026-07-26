@@ -6,6 +6,8 @@
 
 Breadcrumbs is a web application for capturing and organizing stream-of-consciousness thoughts into themes, inspired by a public Google Doc maintained by a Google PM. Unlike traditional blog platforms that emphasize discrete articles, Breadcrumbs presents content as a continuous flow where themes contain small thought atoms (breadcrumbs) in markdown format.
 
+**Live:** https://crumb.blog
+
 **Inspiration:** https://docs.google.com/document/d/1GrEFrdF_IzRVXbGH1lG0aQMlvsB71XihPPqQN-ONTuo/edit?tab=t.0
 
 **Core Philosophy:**
@@ -20,175 +22,175 @@ Breadcrumbs is a web application for capturing and organizing stream-of-consciou
 
 ### Tech Stack
 
-**Backend:**
-- Python 3.11+
-- FastAPI - Modern async web framework
-- PostgreSQL - Database with full-text search
-- SQLModel - Type-safe ORM combining SQLAlchemy + Pydantic
-- Alembic - Database migrations
+**Backend** (repo root, not a `backend/` subdirectory):
+- Python 3.13, managed with `uv` (there is no `requirements.txt` and no manual venv)
+- FastAPI
+- PostgreSQL with full-text search
+- SQLModel (SQLAlchemy + Pydantic)
+- Alembic migrations
+- APScheduler for digest generation and sending
 
-**Frontend:**
-- TypeScript
-- React 18+
-- TanStack Router - Type-safe file-based routing
-- TanStack Query - Server state management
-- Tailwind CSS - Utility-first styling
-- Shadcn UI - Customizable component primitives
-- Vite - Build tool and dev server
+**Frontend** (`frontend/`):
+- TypeScript, React 19
+- TanStack Router (file-based routing), TanStack Query (server state)
+- Tailwind CSS v4, Shadcn UI
+- Vite 7
+- Package manager is **pnpm 10.33.0**, pinned via `packageManager` in `frontend/package.json`. Do not use npm or yarn here.
+
+**External services:**
+- Anthropic Claude (Haiku) for tag suggestions, cover-image scene descriptions, and digest writing
+- Replicate (Flux Schnell) for cover-image rendering
+- Cloudflare R2 for image storage
+- Resend for digest email delivery
 
 **Deployment:**
-- Railway (single service, auto-deploy from main)
-- Custom domain: [crumb.blog](https://crumb.blog)
+- Railway, single service, built from the committed multi-stage `Dockerfile` (`railway.toml` sets `builder = "dockerfile"`)
+- Deploys run from GitHub Actions (`.github/workflows/deploy.yml`) on push to `main`. Railway's native git trigger is intentionally disconnected so that a failed deploy surfaces as a red check in GitHub rather than silently leaving stale code in production.
 - PostgreSQL (Railway-managed)
+- Custom domain: https://crumb.blog
 
 ### Key Components
 
-**Backend API:**
-- `/api/themes` - CRUD operations for themes (body, tags, visibility)
-- `/api/themes/{id}/breadcrumbs` - CRUD operations for breadcrumbs within a theme
-- `/api/themes/{id}/suggest-tags` - AI-powered tag suggestion (Claude Haiku, auth required)
-- `/api/themes/{id}/generate-image` / `/api/themes/{id}/image` - AI cover image generation (Flux Schnell via Replicate, stored in R2)
-- `/api/tags` - Tag listing (ordered by server-side `position`, then name) and browsing
-- `/api/tags/reorder` - PATCH endpoint (auth-required) to set custom tag display order
-- `/api/months` - Calendar months for rolling-window feed navigation
-- `/api/digests` - Weekly/monthly AI-generated summary digests
-- `/api/uploads` - Image/GIF upload to Cloudflare R2
-- Full-text search and tag/month filtering on `/api/themes`
-- JWT authentication endpoints for writer access
+**Backend API** (all routes prefixed `/api`):
+- `/themes` - list, create, read, update, delete themes
+- `/themes/{id}/breadcrumbs` and `/themes/{id}/breadcrumbs/{breadcrumb_id}` - breadcrumb CRUD within a theme
+- `/themes/{id}/suggest-tags` - AI tag suggestion (Claude Haiku, auth required)
+- `/themes/{id}/generate-image`, `/themes/{id}/image` - AI cover image generation and commit (Flux Schnell via Replicate, stored in R2)
+- `/tags` - tag listing, ordered by server-side `position` then name
+- `/tags/{tag_name}/themes` - themes carrying a tag
+- `/tags/reorder` - PATCH, auth required, sets custom tag display order
+- `/months` - calendar months for rolling-window feed navigation
+- `/digests` - weekly/monthly AI summary digests, plus publish and send actions
+- `/subscribers` - digest email subscription with double opt-in
+- `/uploads` - image/GIF upload to Cloudflare R2
+- `/auth/login` - JWT authentication for writer access
+- `/admin` - writer dashboard data
+- Full-text search and tag/month filtering on `/themes`
 
 **Frontend Views:**
-- **Stream View (Reader):** Rolling-window feed of published themes with collapsible past months
+- **Stream View (Reader):** Rolling-window feed of published themes with collapsible past months, digests interleaved chronologically
 - **Theme Editor (Writer):** Create/edit themes, add breadcrumbs, manage tags, publish/draft toggle, AI cover image picker
-- **Tag Browser:** Browse all tags with usage-based opacity gradient, filter themes by tag
-- **Search:** Full-text search across theme content and tags
-- **Writer Dashboard:** All themes (draft + published), digest management
+- **Tag Browser:** Browse tags in custom order with usage-based opacity gradient, filter themes by tag
+- **Search:** Full-text search across theme content, breadcrumbs, and tags
+- **Writer Dashboard:** All themes (draft and published), digest management
 - **Digest Pages:** Weekly/monthly AI summary detail pages
 - **Theme Permalinks:** Standalone `/themes/$themeId` pages for sharing
 
 **Data Models:**
-- **Theme:** Topical container with title, optional description, visibility (draft/published), and tags
-- **Breadcrumb:** Small thought atom (markdown content) that belongs to exactly one theme. Breadcrumbs can nest via optional `parent_id` (self-referential FK). API returns flat list with `parent_id`; clients build tree.
-- **Tag:** Categorization labels with many-to-many relationship to themes. Has an integer `position` field for custom server-side display order; writers drag-reorder via `PATCH /api/tags/reorder` (auth-required).
-- **ThemeTag:** Join table for many-to-many relationship between themes and tags
+- **Theme:** The primary content unit. Holds `body_md` (the thought itself, in markdown), `visibility` (draft/published), optional `image_url` (R2 cover image), and timestamps. Themes carry tags and contain breadcrumbs. Note there is no separate title or description field; an earlier migration merged them into `body_md`.
+- **Breadcrumb:** Small thought atom (markdown) belonging to exactly one theme. Nests via optional self-referential `parent_id`. The API returns a flat list with `parent_id`; clients build the tree. Visibility is inherited from the parent theme.
+- **Tag:** Categorization label, many-to-many with themes. Has an integer `position` for custom server-side display order; writers drag-reorder via `PATCH /api/tags/reorder`.
+- **ThemeTag:** Join table between themes and tags.
+- **Digest / Subscriber / DigestSend:** Weekly and monthly AI-generated summaries, email subscribers, and send records.
+
+Full detail: `docs/data-model.md`.
 
 ## Getting Started
 
 ### Prerequisites
-- Python 3.11+
-- Node.js 18+
-- PostgreSQL 15+
-- Docker (optional, for containerized development)
 
-### Installation
+Toolchain versions are pinned in `mise.toml`. Installing [mise](https://mise.jdx.dev) handles all of them:
 
-**Backend setup:**
 ```bash
-cd backend
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
+mise install    # provisions node 22, pnpm 10.33.0, python 3.13, uv
 ```
 
-**Frontend setup:**
-```bash
-cd frontend
-npm install
-```
-
-**Database setup:**
-```bash
-# Create PostgreSQL database
-createdb breadcrumbs
-
-# Run migrations
-cd backend
-alembic upgrade head
-```
+Without mise you need Node 22, pnpm 10.33.0, Python 3.13, uv, and PostgreSQL.
 
 ### Development
 
-**Start backend server:**
 ```bash
-cd backend
-uvicorn app.main:app --reload
-# API available at http://localhost:8000
-# Docs at http://localhost:8000/docs
+mise run dev        # Vite frontend + FastAPI backend together
+mise run check      # eslint + tsc (web) and pytest (api) — the gate before committing
+mise run test       # backend pytest only
+mise run migrate    # alembic upgrade head
+mise run build      # production Vite build
+mise tasks ls       # all tasks
 ```
 
-**Start frontend dev server:**
+Running the halves separately:
+
 ```bash
+# Backend (from repo root)
+uv sync
+uv run dev                  # http://localhost:8100, docs at /docs
+
+# Frontend
 cd frontend
-npm run dev
-# App available at http://localhost:5173
+pnpm install
+pnpm dev                    # http://localhost:5173
 ```
 
-**Database migrations:**
+### Database migrations
+
 ```bash
-# Create new migration
-alembic revision --autogenerate -m "description"
-
-# Apply migrations
-alembic upgrade head
+uv run alembic revision --autogenerate -m "description"
+uv run alembic upgrade head
 ```
+
+At least one migration uses PostgreSQL-specific SQL and will fail on SQLite, so run migrations against Postgres.
 
 ## Key Concepts
 
 **Themes:**
-The primary organizational unit - a topical container with a title and optional description. Themes have visibility states (draft/published) and can be tagged. Themes contain one or more breadcrumbs.
+The primary organizational unit. A theme is itself a thought, written as markdown in `body_md`, which can accumulate sub-thoughts (breadcrumbs) over time. Themes have visibility states (draft/published) and carry tags.
 
 **Breadcrumbs:**
-Small individual thought atoms - timestamped markdown content that belongs to a theme. Unlike traditional blog posts, breadcrumbs are designed as small chunks that flow together within their theme container. Breadcrumbs can have parent-child relationships (optional `parent_id`) for nesting replies/elaborations. The API returns a flat list; tree structure is built client-side.
+Small individual thought atoms, timestamped markdown content belonging to a theme. Unlike traditional blog posts, breadcrumbs are small chunks that flow together within their theme container. They can nest via `parent_id` for replies and elaborations.
 
 **Tags:**
-Categorical labels applied to themes (not individual breadcrumbs) for filtering and discovery. A theme can have multiple tags.
+Categorical labels applied to themes (not to individual breadcrumbs) for filtering and discovery. A theme can have multiple tags. Display order is writer-controlled and persists server-side.
+
+**Digests:**
+AI-generated weekly and monthly summaries that appear inline in the feed, interleaved chronologically. Monthly digests are summarized from weekly digests rather than raw content, creating a pyramid of abstraction. See `docs/digests.md`.
 
 **Stream View:**
-The primary reader interface showing all published themes and their breadcrumbs in chronological order, with clear visual boundaries between themes. Designed to be read as one continuous narrative rather than discrete articles.
+The primary reader interface, showing published themes and their breadcrumbs in chronological order with clear visual boundaries between themes. Designed to read as one continuous narrative rather than discrete articles.
 
 **Writer View:**
-Authenticated interface where writers can see draft and published themes, create new themes, add breadcrumbs to themes, manage tags, and publish/unpublish themes.
+Authenticated interface where writers see draft and published themes, create themes, add breadcrumbs, manage tags, and publish or unpublish.
 
 ## Project Structure
 
 ```
 /breadcrumbs
-  /backend/
-    /app/
-      /api/          # FastAPI route handlers (themes, breadcrumbs, tags)
-      /models/       # SQLModel database models (Theme, Breadcrumb, Tag, ThemeTag)
-      /schemas/      # Pydantic validation schemas
-      /core/         # Config, database connection, dependencies
-      /services/     # Business logic layer
-    /alembic/        # Database migrations
-    /tests/          # Backend tests
-    requirements.txt
-
+  /app/                  # FastAPI backend (flat modules, not packages)
+    api.py               # all HTTP routes
+    models.py            # SQLModel database + Pydantic models
+    auth.py              # JWT auth, require_admin dependency
+    db.py                # engine, session management, dotenv loading
+    cli.py               # `uv run dev` entry point
+    feed.py              # feed assembly (themes + digests interleaved)
+    storage.py           # Cloudflare R2 helpers
+    scheduler.py         # APScheduler jobs for digests
+    tag_suggester.py     # Claude-backed tag suggestions
+    /digest/             # digest generation, email, send, routes
+    /images/             # cover image pipeline (service, providers, errors)
+  /alembic/              # database migrations
+  /tests/                # backend pytest suite
   /frontend/
     /src/
-      /routes/       # TanStack Router pages
-      /components/   # React components
-      /lib/          # Utilities and helpers
-      /hooks/        # Custom React hooks
+      /routes/           # TanStack Router pages
+      /components/       # React components
+      /lib/              # utilities
+      /hooks/            # custom hooks
     package.json
-
-  /.llm/             # Private AI workspace (gitignored)
-  /CLAUDE.md         # Development conventions
-  /llms.txt          # This file - public LLM documentation
-  /.gitignore
+  /docs/                 # durable human + AI documentation
+  Dockerfile             # production build (the only production build path)
+  railway.toml
+  mise.toml              # pinned local toolchain + task runner
+  CLAUDE.md              # development conventions for AI agents
+  llms.txt               # this file, public LLM documentation
 ```
 
 ## Contributing
 
-This project uses AI-assisted development. See CLAUDE.md for conventions and workflow.
+This project uses AI-assisted development.
 
-### Development Workflow
-- Work tracked in `.llm/active-plan.md` (private workspace)
-- Conventions documented in `CLAUDE.md`
-- Public docs maintained in this file (`llms.txt`)
+- Conventions, gotchas, and agent directives: `CLAUDE.md`
+- Roadmap and milestones: `docs/roadmap.md`
+- Individual tasks: GitHub Issues
+- Deep dives: `docs/data-model.md`, `docs/digests.md`, `docs/theme-images.md`, `docs/solutions/`
+- Learning journal: `docs/log/`
 
-## Additional Resources
-
-[To be added as project grows]
-- Documentation
-- API reference
-- Related projects
+Workflow is feature branch, pull request, CI (pytest plus eslint/tsc), squash merge. Merging to `main` deploys to production automatically.
