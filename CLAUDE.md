@@ -52,6 +52,29 @@ uv 0.8.12. `railway.toml` sets `builder = "dockerfile"`; there is no `nixpacks.t
   `DATABASE_URL`, `R2_*`, `ANTHROPIC_API_KEY`, `REPLICATE_API_TOKEN`, `JWT_SECRET`,
   `ADMIN_PASSWORD`. Nothing sensitive is baked into the Dockerfile.
 
+**Deploys run from GitHub Actions** (`.github/workflows/deploy.yml`), on every push to
+`main`, via `railway up --ci`. Do not deploy by hand and do not re-enable Railway's
+native git trigger.
+
+- **Why Actions and not Railway's own trigger:** a failed Railway build is silent. It
+  just keeps serving the last good deployment, which is exactly how the build stayed
+  broken in production for ~2 months. A failed Actions job is a red X on the commit,
+  where it can't be missed. Re-enabling the native trigger also double-deploys.
+- **`RAILWAY_TOKEN` is a project token scoped to the production environment.** Doppler
+  is the system of record (`breadcrumbs` / `prd`); GitHub Actions secrets hold the
+  working copy, because `secrets.*` cannot read from Doppler. To rotate, mint a new
+  token in the Railway dashboard (browser-only, the CLI has no `tokens` subcommand),
+  then update both:
+  ```bash
+  pbpaste | doppler secrets set RAILWAY_TOKEN -p breadcrumbs -c prd --silent
+  doppler secrets get RAILWAY_TOKEN -p breadcrumbs -c prd --plain \
+    | gh secret set RAILWAY_TOKEN --repo meninoebom/breadcrumbs
+  ```
+- **Validating a project token:** `railway whoami` returns `Unauthorized` even for a
+  good project token, because a project token is not tied to a user. That is a false
+  negative. Test with a project-scoped call instead, e.g.
+  `railway variables --service "Breadcrumbs Web App Server"`.
+
 ## Development Workflow
 
 **Tracking what's next:**
