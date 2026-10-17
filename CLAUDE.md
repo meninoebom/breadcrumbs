@@ -84,7 +84,7 @@ native git trigger.
 
 **Other docs:**
 - `llms.txt` — Public documentation for LLM discovery
-- `docs/log/` — Learning journal entries (post-PR reflections)
+- `docs/log/` — Retired learning journal (001-005); reflections now go to ~/dev/knowledge
 
 **Starting a session:** Run `gh issue list` to see what's next. Read `docs/roadmap.md` for big picture.
 
@@ -168,16 +168,6 @@ Before wrapping up a non-trivial PR, self-assess:
 - Did anything surprise you or require a workaround?
 - Would a future session benefit from knowing this?
 If yes, update this CLAUDE.md with the pattern or gotcha — don't wait to be asked.
-
-### Post-PR Learning Reflection (Brandon's Journal)
-After each PR, offer:
-> "This might be worth a log entry — want to reflect on it, or skip?"
-
-**Skip-worthy:** Typos, dependency bumps, minor CSS, config changes.
-**Log-worthy:** Features, architecture decisions, milestones, workflow learnings.
-
-If yes, create `docs/log/NNN-slug.md` and update the README.md index.
-See `docs/log/README.md` for format and dimensions.
 
 ## Core Features
 - **Theme creation:** Writers create themes as containers for related breadcrumbs
