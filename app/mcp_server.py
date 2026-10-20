@@ -162,6 +162,73 @@ def _register_tools(mcp: FastMCP) -> None:
             themes = list_themes(session=session, q=query)
             return [_compact(t) for t in themes]
 
+    @mcp.tool
+    def update_breadcrumb(breadcrumb_id: int, body_md: str) -> dict:
+        """Replace the Markdown content of an existing breadcrumb.
+
+        Confirm the target with the writer before editing; voice input is lossy.
+        """
+        from fastapi import HTTPException
+
+        from app.api import update_breadcrumb as update_breadcrumb_handler
+        from app.models import Breadcrumb, BreadcrumbBase, BreadcrumbPublic
+
+        with _write_session() as session:
+            existing = session.get(Breadcrumb, breadcrumb_id)
+            if existing is None:
+                raise ToolError("Breadcrumb not found")
+            try:
+                updated = update_breadcrumb_handler(
+                    existing.theme_id,
+                    breadcrumb_id,
+                    BreadcrumbBase(body_md=body_md),
+                    session=session,
+                    _admin=None,
+                )
+            except HTTPException as exc:
+                raise ToolError(str(exc.detail))
+            return BreadcrumbPublic.model_validate(updated, from_attributes=True).model_dump(mode="json")
+
+    def _update_theme(theme_id: int, **fields) -> dict:
+        from fastapi import HTTPException
+
+        from app.api import update_theme as update_theme_handler
+        from app.models import ThemePublic, ThemeUpdate
+
+        with _write_session() as session:
+            try:
+                updated = update_theme_handler(
+                    theme_id, ThemeUpdate(**fields), session=session, _admin=None
+                )
+            except HTTPException as exc:
+                raise ToolError(str(exc.detail))
+            return ThemePublic.model_validate(updated, from_attributes=True).model_dump(mode="json")
+
+    @mcp.tool
+    def update_theme(theme_id: int, body_md: str) -> dict:
+        """Update a theme's body text. Only the body changes; visibility is untouched.
+
+        Confirm the target with the writer before editing; voice input is lossy.
+        """
+        return _update_theme(theme_id, body_md=body_md)
+
+    @mcp.tool
+    def publish_theme(theme_id: int) -> dict:
+        """Publish a draft theme so readers can see it. Confirm with the writer first."""
+        from app.models import Visibility
+
+        return _update_theme(theme_id, visibility=Visibility.published)
+
+    @mcp.tool
+    def unpublish_theme(theme_id: int) -> dict:
+        """Unpublish a theme (back to draft), removing it from the reader feed.
+
+        Confirm with the writer first.
+        """
+        from app.models import Visibility
+
+        return _update_theme(theme_id, visibility=Visibility.draft)
+
 
 def build_mcp(token: Optional[str] = None) -> Optional[FastMCP]:
     """Build the FastMCP server, or ``None`` when no connector token is set.
