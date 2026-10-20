@@ -131,6 +131,37 @@ def _register_tools(mcp: FastMCP) -> None:
                 raise ToolError(str(exc.detail))
             return {"tags": list(result.tags)}
 
+    def _compact(theme) -> dict:
+        return {
+            "id": theme.id,
+            "visibility": theme.visibility.value,
+            "tags": [tag.name for tag in theme.tags],
+            "body_md": theme.body_md,
+        }
+
+    @mcp.tool
+    def list_recent_themes(limit: int = 10) -> list[dict]:
+        """List recent themes (newest first) so you can pick the right one.
+
+        Returns id, visibility (draft/published), tags, and body for each.
+        """
+        from app.api import list_themes
+
+        with _write_session() as session:
+            # Pass offset explicitly: calling the handler directly bypasses
+            # FastAPI, so its Query() defaults are not resolved to ints.
+            themes = list_themes(session=session, limit=limit, offset=0)
+            return [_compact(t) for t in themes]
+
+    @mcp.tool
+    def search_themes(query: str) -> list[dict]:
+        """Search themes by a query across theme bodies, breadcrumb text, and tags."""
+        from app.api import list_themes
+
+        with _write_session() as session:
+            themes = list_themes(session=session, q=query)
+            return [_compact(t) for t in themes]
+
 
 def build_mcp(token: Optional[str] = None) -> Optional[FastMCP]:
     """Build the FastMCP server, or ``None`` when no connector token is set.

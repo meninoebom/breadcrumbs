@@ -230,6 +230,7 @@ def list_themes(
             or_(
                 col(Theme.body_md).ilike(f"%{safe_q}%"),
                 Theme.breadcrumbs.any(col(Breadcrumb.body_md).ilike(f"%{safe_q}%")),
+                Theme.tags.any(col(Tag.name).ilike(f"%{safe_q}%")),
             )
         )
 
