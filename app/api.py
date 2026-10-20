@@ -48,6 +48,8 @@ from app.models import (
     Visibility,
 )
 from app.storage import R2ConfigError, put_object
+from app.mcp_server import build_mcp_app
+from fastmcp.utilities.lifespan import combine_lifespans
 
 
 @asynccontextmanager
@@ -62,7 +64,15 @@ async def lifespan(app: FastAPI):
         yield
 
 
-app = FastAPI(title="Breadcrumbs API", lifespan=lifespan)
+# The MCP authoring connector (/mcp). Built only when MCP_CONNECTOR_TOKEN is set;
+# otherwise it is never mounted, so no unauthenticated authoring path exists. Its
+# lifespan (the Streamable HTTP session manager) is merged into the app lifespan.
+mcp_app = build_mcp_app()
+
+app = FastAPI(
+    title="Breadcrumbs API",
+    lifespan=combine_lifespans(lifespan, mcp_app.lifespan) if mcp_app else lifespan,
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -661,6 +671,11 @@ app.include_router(router)
 app.include_router(digest_router)
 app.include_router(subscriber_router)
 app.include_router(cron_router)
+
+# Mount the MCP authoring connector before the SPA catch-all so POSTs to /mcp
+# are not swallowed by the frontend fallback route.
+if mcp_app is not None:
+    app.mount("/mcp", mcp_app)
 
 # In production, serve the built frontend
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")

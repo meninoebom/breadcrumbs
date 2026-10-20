@@ -1,5 +1,11 @@
 """Pytest configuration and fixtures for breadcrumbs tests."""
 
+import os
+
+# Set a connector token BEFORE importing app.api so the MCP server (/mcp) is
+# mounted during tests. app.api reads this at import time.
+os.environ.setdefault("MCP_CONNECTOR_TOKEN", "test-connector-token")
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session, SQLModel, create_engine
