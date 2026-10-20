@@ -2,9 +2,11 @@
 
 Purpose: Let Brandon author and manage crumb.blog content from his phone by
 talking to an agent (Claude app custom connector). A small MCP server is mounted
-on the existing FastAPI app and exposes a focused set of authoring tools,
-reusing the existing API-key admin auth. This covers the text operations;
-cover images are specified separately.
+on the existing FastAPI app at `/mcp` and exposes a focused set of authoring
+tools. A single auth gate protects it: every request must carry the connector
+token (`MCP_CONNECTOR_TOKEN`); past the gate, tools run in-process as the
+trusted admin principal (no second credential, no self-HTTP hop). This covers
+the text operations.
 
 Out of scope:
 - A new mobile review UI (the existing writer dashboard is mobile-responsive; drafts are reviewed there).
@@ -17,7 +19,7 @@ Out of scope:
 |----|-----------|
 | CONN-1 | WHEN a client connects to the MCP endpoint without a valid connector token THEN the request is rejected and no tools are exposed |
 | CONN-2 | WHEN a client connects with the valid connector token THEN the server lists the authoring tools over Streamable HTTP |
-| CONN-3 | WHEN any authoring tool performs a write THEN it authenticates to the Breadcrumbs API as an admin machine client (X-API-Key), so an unauthenticated path cannot write |
+| CONN-3 | WHEN `MCP_CONNECTOR_TOKEN` is not set THEN no MCP server is built and `/mcp` is not mounted, so no unauthenticated path to the authoring tools can exist (fail-safe) |
 | CAP-1 | WHEN `add_breadcrumb` is called with a valid theme id and content THEN a breadcrumb is created on that theme and its id and timestamp are returned |
 | CAP-2 | WHEN `add_breadcrumb` references a non-existent theme id THEN the tool returns a clear not-found error, not a 500 |
 | CAP-3 | WHEN `create_theme` is called with a title and no publish flag THEN the theme is created as a draft (published=false) |
