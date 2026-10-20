@@ -15,10 +15,12 @@ authoring tools can exist.
 """
 
 import os
+from contextlib import contextmanager
 from typing import Optional
 
 from dotenv import load_dotenv
 from fastmcp import FastMCP
+from fastmcp.exceptions import ToolError
 from fastmcp.server.auth import StaticTokenVerifier
 
 # auth.py-style gotcha: this module reads env at import/build time, so load the
@@ -28,13 +30,36 @@ load_dotenv()
 SERVER_NAME = "Breadcrumbs Authoring"
 
 
+@contextmanager
+def _write_session():
+    """A committing DB session for tools, mirroring ``db.get_session``.
+
+    Imports the engine lazily so tests can repoint ``app.db.engine`` at an
+    in-memory database before a tool runs.
+    """
+    from sqlmodel import Session
+
+    from app.db import engine
+
+    session = Session(engine)
+    try:
+        yield session
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
 def _register_tools(mcp: FastMCP) -> None:
     """Register the authoring tools on the server.
 
-    Issue #105 ships only the connectivity check; the capture, find, edit, and
-    publish tools are added by #106-#108. Tools that touch the database import
-    their helpers lazily inside the function body to avoid a circular import
-    with ``app.api``.
+    Tools that touch the database import their helpers lazily inside the
+    function body to avoid a circular import with ``app.api``. They call the
+    same route-handler functions the REST API uses, so there is one source of
+    truth for the logic, and translate the API's ``HTTPException`` into a clean
+    ``ToolError`` the agent can read.
     """
 
     @mcp.tool
@@ -48,6 +73,63 @@ def _register_tools(mcp: FastMCP) -> None:
             "server": SERVER_NAME,
             "environment": os.getenv("ENVIRONMENT", "development"),
         }
+
+    @mcp.tool
+    def add_breadcrumb(theme_id: int, body_md: str) -> dict:
+        """Add a breadcrumb (a small thought atom, Markdown) to an existing theme.
+
+        Use `list_recent_themes` or `search_themes` first to find the theme id.
+        """
+        from fastapi import HTTPException
+
+        from app.api import create_breadcrumb
+        from app.models import BreadcrumbCreateInput, BreadcrumbPublic
+
+        payload = BreadcrumbCreateInput(body_md=body_md)
+        with _write_session() as session:
+            try:
+                created = create_breadcrumb(theme_id, payload, session=session, _admin=None)
+            except HTTPException as exc:
+                raise ToolError(str(exc.detail))
+            return BreadcrumbPublic.model_validate(created, from_attributes=True).model_dump(mode="json")
+
+    @mcp.tool
+    def create_theme(body_md: str, tags: Optional[list[str]] = None, publish: bool = False) -> dict:
+        """Create a new theme (a container for related breadcrumbs), Markdown body.
+
+        Defaults to a DRAFT. Pass publish=true ONLY when the writer explicitly
+        says to publish; otherwise leave it as a draft to review later. Reuse
+        existing tags where they fit (see `suggest_tags`).
+        """
+        from app.api import create_theme as create_theme_handler
+        from app.models import TagCreate, ThemeCreate, ThemePublic, Visibility
+
+        theme_in = ThemeCreate(
+            body_md=body_md,
+            visibility=Visibility.published if publish else Visibility.draft,
+            tags=[TagCreate(name=t) for t in (tags or [])],
+        )
+        with _write_session() as session:
+            created = create_theme_handler(theme_in, session=session, _admin=None)
+            return ThemePublic.model_validate(created, from_attributes=True).model_dump(mode="json")
+
+    @mcp.tool
+    def suggest_tags(theme_id: int) -> dict:
+        """Return AI-suggested tags for a theme, for the writer to confirm.
+
+        This applies nothing; it only proposes tags. Apply chosen tags with an
+        edit once the writer confirms.
+        """
+        from fastapi import HTTPException
+
+        from app.api import suggest_theme_tags
+
+        with _write_session() as session:
+            try:
+                result = suggest_theme_tags(theme_id, session=session, _admin=None)
+            except HTTPException as exc:
+                raise ToolError(str(exc.detail))
+            return {"tags": list(result.tags)}
 
 
 def build_mcp(token: Optional[str] = None) -> Optional[FastMCP]:
