@@ -46,20 +46,41 @@ doppler secrets get MCP_CONNECTOR_TOKEN -p breadcrumbs -c prd --plain
 ```
 
 Rotating is the same as any secret: generate a new token, overwrite both
-places, then update the bearer token in the Claude connector config.
+places, then update the `Authorization` request header in the Claude connector
+config.
 
 ## Adding the connector in Claude
 
-Custom connectors are added on claude.ai web or desktop first; once added they
-appear in the phone app. Requires a Pro or Max plan.
+Custom connectors are added once at the account level on claude.ai web or
+desktop (the phone app has no "add connector" button); once added they appear in
+the phone app. Requires a Pro or Max plan.
 
 1. claude.ai → Settings → Connectors → Add custom connector.
-2. URL: `https://crumb.blog/mcp/` (trailing slash; Streamable HTTP transport).
-3. Auth: bearer token. Paste the `MCP_CONNECTOR_TOKEN` value.
-4. Save. The connector now appears in the Claude app on your phone.
+2. Name: `Breadcrumbs`. URL: `https://crumb.blog/mcp` (Streamable HTTP).
+3. Continue. On the auth step pick **No sign-in** ("servers that use an API key
+   instead of OAuth"). The server uses a static bearer token, not OAuth, so the
+   "Sign in now / Detected" default will not complete.
+4. Under **Request headers**, Add header: name `Authorization`, value
+   `Bearer <token>` (the word `Bearer`, one space, then the `MCP_CONNECTOR_TOKEN`
+   value). This is the credential the server's gate checks.
+5. Add. The connector now appears in the Claude app on your phone.
 
 Verify by asking the agent to call `server_status`; it should report the server
 is reachable and authenticated.
+
+### Connector-URL gotchas (why the server is reachable at bare `/mcp`)
+
+The Streamable HTTP app is mounted at `/mcp/`, but the connector is configured
+with `https://crumb.blog/mcp` for two reasons the UI forces:
+
+- The connector UI **strips the trailing slash**, so requests always arrive at
+  bare `/mcp` no matter what you type.
+- Claude's MCP client **does not follow HTTP redirects** on the transport, so a
+  307 from `/mcp` to `/mcp/` does not work (it reports "Couldn't connect").
+
+So the app rewrites the path in the ASGI scope: a request to `/mcp` is handled
+as `/mcp/` inside the server, with no redirect. See `_McpBarePathRewrite` in
+`app/api.py` and contract test `CONN-4`.
 
 ## Tools
 
