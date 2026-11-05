@@ -75,6 +75,27 @@ native git trigger.
   negative. Test with a project-scoped call instead, e.g.
   `railway variables --service "Breadcrumbs Web App Server"`.
 
+## Costs
+
+Date-stamped ledger of paid services, since provider billing is per-account and
+mostly not CLI-exposed. This is the source of truth `/project-brief` reads; update a
+bullet (with a new `as of` date) whenever a plan or service changes.
+
+- **Railway** — hosts both production services in one project (`Breadcrumbs Web App
+  Server` + `Breadcrumbs Postgres DB`). Fixed plan cost + metered usage. Amount TODO:
+  check the Railway dashboard (billing is not CLI/MCP-exposed) and record the plan
+  here, e.g. `Railway Hobby $5/mo incl. $5 usage (as of 2026-10)`.
+- **Cloudflare R2** — object storage for uploaded + AI-generated images. Effectively
+  free at current volume (within the free tier) (as of 2026-10).
+- **Anthropic API** — Claude Haiku 4.5 for tag suggestions, digests, and theme-image
+  prompts. Usage-metered, fractions of a cent per call; negligible at current volume
+  (as of 2026-10).
+- **Replicate** — Flux Schnell for theme cover images. Usage-metered, ~$0.012 per
+  grid-of-4 generation (~$0.0125 incl. the Haiku prompt call); only on writer click
+  (as of 2026-10). See `docs/theme-images.md`.
+- **Free at this scale:** GitHub Actions (CI + deploy), and the Telegram agent runs on
+  Brandon's home Mac via launchd (no paid host).
+
 ## Development Workflow
 
 **Tracking what's next:**
@@ -185,6 +206,7 @@ If yes, update this CLAUDE.md with the pattern or gotcha — don't wait to be as
 - **Markdown rendering:** Full markdown support for formatting
 - **Mobile responsive:** Horizontal scrollable tag pills on mobile, stacked header, touch-friendly targets
 - **Agent authoring:** OpenClaw skill enables content creation via Telegram (voice or text input) — to be replaced by a self-contained agent with SQLite + vector memory (see issue #40)
+- **Phone authoring (MCP connector):** an MCP server at `/mcp` exposes focused authoring tools (create/edit themes and breadcrumbs, find, publish/unpublish, suggest tags) to the Claude app as a custom connector, so content can be authored from a phone. Single token gate (`MCP_CONNECTOR_TOKEN`); deploys dark until the token is set. See `docs/mcp-authoring.md`.
 - **AI tag suggestions:** After theme creation, `POST /api/themes/{id}/suggest-tags` returns 3–5 Claude Haiku-generated tags; two-phase create dialog pre-fills chip input with sparkle (✨) indicators per AI-suggested tag
 - **Sidebar digest nav:** Monthly digest links in left sidebar smooth-scroll to digest position in feed (desktop only)
 - **Theme permalinks:** Standalone `/themes/$themeId` pages for sharing individual themes, with hover-visible link icon in the feed
@@ -253,4 +275,5 @@ The two Flux Schnell pools are unreliable in ways that are inherent to serverles
 - **Cascade delete patterns:** `docs/solutions/cascade-patterns.md`
 - **Digests (weekly/monthly summaries):** `docs/digests.md`
 - **Theme cover images (Claude → Flux pipeline):** `docs/theme-images.md`
+- **Phone authoring (MCP connector):** `docs/mcp-authoring.md`
 - **Deployment gotchas:** `docs/solutions/deployment-gotchas.md`
