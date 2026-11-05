@@ -9,7 +9,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import nulls_last
 from sqlalchemy.exc import DataError, IntegrityError, OperationalError
@@ -676,6 +676,14 @@ app.include_router(cron_router)
 # Mount the MCP authoring connector before the SPA catch-all so POSTs to /mcp
 # are not swallowed by the frontend fallback route.
 if mcp_app is not None:
+    # Claude's connector UI strips the trailing slash from the server URL, so
+    # requests arrive at bare /mcp while the Streamable HTTP app is served at
+    # /mcp/. Redirect with 307 to preserve the method and body of the handshake
+    # POST; same-origin, so the Authorization header is preserved.
+    @app.api_route("/mcp", methods=["GET", "POST", "DELETE"], include_in_schema=False)
+    async def mcp_trailing_slash_redirect() -> RedirectResponse:
+        return RedirectResponse(url="/mcp/", status_code=307)
+
     app.mount("/mcp", mcp_app)
 
 # In production, serve the built frontend
