@@ -53,19 +53,25 @@ def test_CONN_2_valid_token_lists_tools():
     assert "server_status" in asyncio.run(_tool_names())
 
 
-def test_CONN_4_bare_mcp_redirects_to_trailing_slash():
-    # Claude's connector UI strips the trailing slash, so requests hit bare /mcp.
-    # WHEN a client POSTs to /mcp without a trailing slash THEN it is redirected
-    # (307, method-preserving) to /mcp/ rather than swallowed by the SPA/404.
+def test_CONN_4_bare_mcp_served_without_trailing_slash():
+    # Claude's connector UI strips the trailing slash, so requests hit bare /mcp,
+    # and its MCP client does not follow a redirect. WHEN a client hits bare /mcp
+    # THEN it is routed straight into the MCP app (no redirect, not the SPA): an
+    # unauthenticated request reaches the auth gate and is rejected (401), and a
+    # valid token gets past it (not 401) -- identical to /mcp/.
     with TestClient(app) as client:
-        resp = client.post(
+        unauth = client.post(
+            "/mcp", json=_MCP_BODY, headers=_ACCEPT, follow_redirects=False
+        )
+        assert unauth.status_code == 401
+
+        authed = client.post(
             "/mcp",
             json=_MCP_BODY,
             headers={**_ACCEPT, "Authorization": f"Bearer {TOKEN}"},
             follow_redirects=False,
         )
-        assert resp.status_code == 307
-        assert resp.headers["location"] == "/mcp/"
+        assert authed.status_code != 401
 
 
 def test_CONN_3_no_token_means_no_server():
