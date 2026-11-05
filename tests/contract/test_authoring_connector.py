@@ -53,6 +53,21 @@ def test_CONN_2_valid_token_lists_tools():
     assert "server_status" in asyncio.run(_tool_names())
 
 
+def test_CONN_4_bare_mcp_redirects_to_trailing_slash():
+    # Claude's connector UI strips the trailing slash, so requests hit bare /mcp.
+    # WHEN a client POSTs to /mcp without a trailing slash THEN it is redirected
+    # (307, method-preserving) to /mcp/ rather than swallowed by the SPA/404.
+    with TestClient(app) as client:
+        resp = client.post(
+            "/mcp",
+            json=_MCP_BODY,
+            headers={**_ACCEPT, "Authorization": f"Bearer {TOKEN}"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 307
+        assert resp.headers["location"] == "/mcp/"
+
+
 def test_CONN_3_no_token_means_no_server():
     # WHEN MCP_CONNECTOR_TOKEN is not set THEN no server and no mountable app are
     # built, so no unauthenticated path to the authoring tools can exist.
