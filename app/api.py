@@ -9,7 +9,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import nulls_last
 from sqlalchemy.exc import DataError, IntegrityError, OperationalError
@@ -678,12 +678,24 @@ app.include_router(cron_router)
 if mcp_app is not None:
     # Claude's connector UI strips the trailing slash from the server URL, so
     # requests arrive at bare /mcp while the Streamable HTTP app is served at
-    # /mcp/. Redirect with 307 to preserve the method and body of the handshake
-    # POST; same-origin, so the Authorization header is preserved.
-    @app.api_route("/mcp", methods=["GET", "POST", "DELETE"], include_in_schema=False)
-    async def mcp_trailing_slash_redirect() -> RedirectResponse:
-        return RedirectResponse(url="/mcp/", status_code=307)
+    # /mcp/. Claude's MCP client does not follow an HTTP redirect, so rewrite the
+    # path in the ASGI scope instead: /mcp is handled as /mcp/ inside the server,
+    # with no 3xx the client would have to follow. Pure ASGI (not
+    # BaseHTTPMiddleware) so the streamed SSE response is not buffered.
+    class _McpBarePathRewrite:
+        def __init__(self, asgi_app) -> None:
+            self.asgi_app = asgi_app
 
+        async def __call__(self, scope, receive, send) -> None:
+            if scope["type"] == "http" and scope.get("path") == "/mcp":
+                scope = dict(scope)
+                scope["path"] = "/mcp/"
+                raw_path = scope.get("raw_path")
+                if raw_path is not None and not raw_path.endswith(b"/"):
+                    scope["raw_path"] = raw_path + b"/"
+            await self.asgi_app(scope, receive, send)
+
+    app.add_middleware(_McpBarePathRewrite)
     app.mount("/mcp", mcp_app)
 
 # In production, serve the built frontend
