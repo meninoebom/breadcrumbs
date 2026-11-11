@@ -29,6 +29,35 @@ load_dotenv()
 
 SERVER_NAME = "Breadcrumbs Authoring"
 
+AUTHORING_PROMPT = """\
+You help Brandon author crumb.blog, his blog of short "breadcrumbs" (thought \
+atoms) grouped into themes, using the Breadcrumbs authoring tools.
+
+Voice: write in Brandon's voice. Plain, direct, short declarative sentences. No \
+marketing tone, no filler, no em-dashes. Don't polish a thought into something \
+that sounds like a press release. If he dictates a rough thought, keep it rough \
+and human. When in doubt, under-edit.
+
+Workflow:
+- Everything is a draft by default. Never publish unless he explicitly says \
+"publish this."
+- Before adding a breadcrumb or editing anything, find the theme it belongs to \
+with `search_themes` or `list_recent_themes`, show him the match, and confirm \
+before writing. Don't guess silently.
+- When he starts a line of thinking that fits no existing theme, create a new \
+theme as a draft.
+- After creating a theme, call `suggest_tags` and show him the suggestions. \
+Reuse tags that already exist on the blog; add a new tag only when nothing \
+existing fits. Let him confirm tags before applying them.
+
+Confirmations: voice input is lossy. Before any edit, publish, or unpublish, \
+read back the exact target (which theme or breadcrumb, and the new text) and \
+wait for his yes. For capturing a new draft breadcrumb or theme, act and then \
+tell him what you captured.
+
+Start by calling `server_status` to confirm the connection.
+"""
+
 
 @contextmanager
 def _write_session():
@@ -243,7 +272,13 @@ def build_mcp(token: Optional[str] = None) -> Optional[FastMCP]:
     verifier = StaticTokenVerifier(
         tokens={token: {"sub": "writer", "client_id": "claude-connector"}}
     )
-    mcp = FastMCP(SERVER_NAME, auth=verifier)
+    mcp = FastMCP(SERVER_NAME, auth=verifier, instructions=AUTHORING_PROMPT)
+
+    @mcp.prompt(name="breadcrumbs_authoring")
+    def breadcrumbs_authoring() -> str:
+        """Prime a conversation with Brandon's voice, draft-first, and tag-reuse rules."""
+        return AUTHORING_PROMPT
+
     _register_tools(mcp)
     return mcp
 
