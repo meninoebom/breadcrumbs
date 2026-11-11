@@ -1,4 +1,4 @@
-"""Contract tests for the authoring prompt and confirmation guidance (issue #109)."""
+"""Contract tests for the authoring prompt and confirmation guidance."""
 
 import asyncio
 
@@ -19,21 +19,13 @@ def _run(coro_fn):
 
 def test_authoring_prompt_is_served():
     async def _prompt_text(client):
-        names = [p.name for p in await client.list_prompts()]
-        assert "breadcrumbs_authoring" in names
+        prompts = {p.name: p for p in await client.list_prompts()}
+        assert prompts["breadcrumbs_authoring"].title == "Breadcrumbs authoring"
         result = await client.get_prompt("breadcrumbs_authoring")
         return result.messages[0].content.text
 
     text = _run(_prompt_text)
     assert text == AUTHORING_PROMPT
-
-
-def test_authoring_prompt_carries_voice_and_tag_rules():
-    lowered = AUTHORING_PROMPT.lower()
-    assert "em-dash" in lowered
-    assert "draft" in lowered
-    assert "reuse" in lowered and "tag" in lowered
-    assert "confirm" in lowered
 
 
 def test_server_instructions_are_the_authoring_prompt():

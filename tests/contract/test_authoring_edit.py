@@ -102,3 +102,36 @@ def test_PUB_2_unpublish_removes_from_feed(engine):
     res = _call("unpublish_theme", {"theme_id": theme_id})
     assert res.data["visibility"] == "draft"
     assert _theme_visibility(engine, theme_id) == "draft"
+
+
+def _theme_tags(engine, theme_id):
+    from app.models import Theme
+
+    with Session(engine) as s:
+        return sorted(tag.name for tag in s.get(Theme, theme_id).tags)
+
+
+def test_EDIT_3_update_theme_applies_tags_only(engine):
+    theme_id = _seed_theme(engine, body_md="orig", visibility="published")
+
+    res = _call("update_theme", {"theme_id": theme_id, "tags": ["ai", "music"]})
+    assert sorted(t["name"] for t in res.data["tags"]) == ["ai", "music"]
+    assert res.data["body_md"] == "orig"
+    assert res.data["visibility"] == "published"
+    assert _theme_tags(engine, theme_id) == ["ai", "music"]
+
+
+def test_EDIT_4_body_edit_keeps_tags(engine):
+    theme_id = _seed_theme(engine, body_md="orig")
+    _call("update_theme", {"theme_id": theme_id, "tags": ["ai"]})
+
+    _call("update_theme", {"theme_id": theme_id, "body_md": "edited"})
+    assert _theme_tags(engine, theme_id) == ["ai"]
+
+
+def test_EDIT_5_update_theme_requires_a_change(engine):
+    from fastmcp.exceptions import ToolError
+
+    theme_id = _seed_theme(engine)
+    with pytest.raises(ToolError):
+        _call("update_theme", {"theme_id": theme_id})

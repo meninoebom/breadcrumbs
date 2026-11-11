@@ -36,24 +36,31 @@ atoms) grouped into themes, using the Breadcrumbs authoring tools.
 Voice: write in Brandon's voice. Plain, direct, short declarative sentences. No \
 marketing tone, no filler, no em-dashes. Don't polish a thought into something \
 that sounds like a press release. If he dictates a rough thought, keep it rough \
-and human. When in doubt, under-edit.
+and human. When in doubt, under-edit. If it can be one sentence, make it one \
+sentence. Use a Markdown link to the source when a thought builds on someone \
+else's idea.
+
+Shape:
+- A theme is one captured thought (an observation, connection, provocation, or \
+question) in 1-5 sentences. Not an article.
+- A breadcrumb elaborates on or branches from a theme in 1-3 sentences.
+- Tags are lowercase and dash-separated (e.g. `mental-models`), 1-5 per theme.
+
+Drafts and visibility: only themes have a draft state. A new theme is a draft \
+unless he explicitly says "publish this." A breadcrumb has no draft state: \
+adding one to a published theme puts it live immediately.
 
 Workflow:
-- Everything is a draft by default. Never publish unless he explicitly says \
-"publish this."
-- Before adding a breadcrumb or editing anything, find the theme it belongs to \
-with `search_themes` or `list_recent_themes`, show him the match, and confirm \
-before writing. Don't guess silently.
-- When he starts a line of thinking that fits no existing theme, create a new \
-theme as a draft.
+- New line of thinking that fits no existing theme: create a new theme as a \
+draft. You can do this without asking first, then tell him what you captured.
+- Anything else (adding a breadcrumb, editing, publishing, unpublishing): first \
+find the target with `search_themes` or `list_recent_themes`, then read back \
+the exact target (which theme or breadcrumb, whether it is published, and the \
+new text) and wait for his yes. Voice input is lossy; don't guess silently.
 - After creating a theme, call `suggest_tags` and show him the suggestions. \
 Reuse tags that already exist on the blog; add a new tag only when nothing \
-existing fits. Let him confirm tags before applying them.
-
-Confirmations: voice input is lossy. Before any edit, publish, or unpublish, \
-read back the exact target (which theme or breadcrumb, and the new text) and \
-wait for his yes. For capturing a new draft breadcrumb or theme, act and then \
-tell him what you captured.
+existing fits. Once he confirms, apply them with `update_theme(theme_id, \
+tags=[...])`. That replaces the theme's full tag list.
 
 Start by calling `server_status` to confirm the connection.
 """
@@ -146,8 +153,8 @@ def _register_tools(mcp: FastMCP) -> None:
     def suggest_tags(theme_id: int) -> dict:
         """Return AI-suggested tags for a theme, for the writer to confirm.
 
-        This applies nothing; it only proposes tags. Apply chosen tags with an
-        edit once the writer confirms.
+        This applies nothing; it only proposes tags. Apply chosen tags with
+        `update_theme(theme_id, tags=[...])` once the writer confirms.
         """
         from fastapi import HTTPException
 
@@ -234,12 +241,25 @@ def _register_tools(mcp: FastMCP) -> None:
             return ThemePublic.model_validate(updated, from_attributes=True).model_dump(mode="json")
 
     @mcp.tool
-    def update_theme(theme_id: int, body_md: str) -> dict:
-        """Update a theme's body text. Only the body changes; visibility is untouched.
+    def update_theme(
+        theme_id: int, body_md: Optional[str] = None, tags: Optional[list[str]] = None
+    ) -> dict:
+        """Update a theme's body text, its tags, or both. Visibility is untouched.
 
+        `tags` replaces the theme's full tag list; omit it to leave tags as they
+        are. Use it to apply tags the writer confirmed from `suggest_tags`.
         Confirm the target with the writer before editing; voice input is lossy.
         """
-        return _update_theme(theme_id, body_md=body_md)
+        from app.models import TagCreate
+
+        fields: dict = {}
+        if body_md is not None:
+            fields["body_md"] = body_md
+        if tags is not None:
+            fields["tags"] = [TagCreate(name=t) for t in tags]
+        if not fields:
+            raise ToolError("Nothing to update: pass body_md, tags, or both")
+        return _update_theme(theme_id, **fields)
 
     @mcp.tool
     def publish_theme(theme_id: int) -> dict:
@@ -274,7 +294,7 @@ def build_mcp(token: Optional[str] = None) -> Optional[FastMCP]:
     )
     mcp = FastMCP(SERVER_NAME, auth=verifier, instructions=AUTHORING_PROMPT)
 
-    @mcp.prompt(name="breadcrumbs_authoring")
+    @mcp.prompt(name="breadcrumbs_authoring", title="Breadcrumbs authoring")
     def breadcrumbs_authoring() -> str:
         """Prime a conversation with Brandon's voice, draft-first, and tag-reuse rules."""
         return AUTHORING_PROMPT

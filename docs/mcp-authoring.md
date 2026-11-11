@@ -93,7 +93,7 @@ as `/mcp/` inside the server, with no redirect. See `_McpBarePathRewrite` in
 - `list_recent_themes(limit=10)` — recent themes, newest first.
 - `search_themes(query)` — search across theme bodies, breadcrumb text, tags.
 - `update_breadcrumb(breadcrumb_id, body_md)` — replace a breadcrumb's content.
-- `update_theme(theme_id, body_md)` — update a theme's body.
+- `update_theme(theme_id, body_md?, tags?)` — update a theme's body, its tags (replaces the full list), or both.
 - `publish_theme(theme_id)` / `unpublish_theme(theme_id)` — toggle visibility.
 
 ## Authoring prompt
