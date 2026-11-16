@@ -309,8 +309,13 @@ def build_mcp_app(token: Optional[str] = None):
     The caller merges ``app.lifespan`` into the host app's lifespan (the
     Streamable HTTP session manager runs there) and mounts the result at
     ``/mcp``.
+
+    Stateless: every tool is plain request/response, so the server keeps no
+    MCP session between requests. A client holding an old session id (after a
+    restart, or a session the server dropped) is still served instead of
+    getting a 404 it may never recover from.
     """
     mcp = build_mcp(token)
     if mcp is None:
         return None
-    return mcp.http_app(path="/")
+    return mcp.http_app(path="/", stateless_http=True)
