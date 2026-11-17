@@ -82,6 +82,16 @@ So the app rewrites the path in the ASGI scope: a request to `/mcp` is handled
 as `/mcp/` inside the server, with no redirect. See `_McpBarePathRewrite` in
 `app/api.py` and contract test `CONN-4`.
 
+### Stateless transport
+
+The server runs Streamable HTTP in stateless mode (`stateless_http=True` in
+`build_mcp_app`): it keeps no MCP session between requests, since every tool is
+plain request/response. In stateful mode a client holding a session id the
+server no longer knew got a `404 Session not found` and a chat could lose the
+connector until it was reconnected. Stateless, any authenticated request is
+served. Contract test `CONN-5` lists the tools end to end over HTTP, with no
+session id and with a stale one.
+
 ## Tools
 
 - `server_status` — confirm the connector is reachable and authenticated.

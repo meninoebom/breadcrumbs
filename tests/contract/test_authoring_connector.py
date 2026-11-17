@@ -9,6 +9,7 @@ the fail-safe (no token -> no server) rather than an X-API-Key bridge.
 """
 
 import asyncio
+import json
 
 from fastapi.testclient import TestClient
 
@@ -81,3 +82,44 @@ def test_CONN_3_no_token_means_no_server():
     assert build_mcp_app(token="") is None
     # And a configured token does build a server (sanity).
     assert build_mcp(token="anything") is not None
+
+
+def _rpc(client, body, **headers):
+    # Streamable HTTP answers as SSE; the JSON-RPC message is on the data line.
+    resp = client.post(
+        "/mcp",
+        json=body,
+        headers={**_ACCEPT, "Authorization": f"Bearer {TOKEN}", **headers},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 200, resp.text
+    data = next(l for l in resp.text.splitlines() if l.startswith("data:"))
+    return json.loads(data.removeprefix("data:"))
+
+
+def test_CONN_5_tools_listed_end_to_end_without_a_session():
+    # The path Claude actually takes: real HTTP through the mounted app at bare
+    # /mcp. WHEN a client initializes and then lists tools THEN it gets the
+    # authoring tools. The server is stateless, so a request without a session
+    # id, or with one the server no longer knows, is still served rather than
+    # rejected (400 / 404) and leaving the connector with no tools.
+    with TestClient(app) as client:
+        init = _rpc(
+            client,
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2025-06-18",
+                    "capabilities": {},
+                    "clientInfo": {"name": "contract-test", "version": "0"},
+                },
+            },
+        )
+        assert "tools" in init["result"]["capabilities"]
+
+        for headers in ({}, {"mcp-session-id": "stale-session"}):
+            listed = _rpc(client, _MCP_BODY, **headers)
+            names = {t["name"] for t in listed["result"]["tools"]}
+            assert {"server_status", "create_theme", "add_breadcrumb"} <= names
